@@ -15,13 +15,6 @@
 **[🌐 Ver Demo en Vivo](https://coco-gym-dashboard.vercel.app/)** · **[🐛 Reportar Bug](https://github.com/LilDre7/coco-gym-dashboard/issues)** · **[💡 Solicitar Feature](https://github.com/LilDre7/coco-gym-dashboard/issues)**
 
 </div>
-
----
-
-## 📸 Vista previa
-
-> _Agrega aquí capturas de pantalla del dashboard (recomendado: hero screenshot + detalle de la tabla de miembros)._
-
 ---
 
 ## ✨ Características principales
