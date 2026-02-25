@@ -36,6 +36,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MemberForm } from "@/components/member-form";
 import {
@@ -70,6 +76,7 @@ import {
   Clock3,
   OctagonAlert,
   Loader2,
+  Ellipsis,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -551,24 +558,30 @@ export function MembersTable({ members }: MembersTableProps) {
                               <MessageCircle className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
                             )}
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
-                            onClick={() => handleEdit(member)}
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4 lg:h-5 lg:w-5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
-                            onClick={() => setMemberToToggleActive(member)}
-                            title="Manage member status"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive lg:h-5 lg:w-5" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
+                                title="More actions"
+                              >
+                                <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => handleEdit(member)}>
+                                <Pencil className="h-4 w-4" />
+                                Edit member
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setMemberToToggleActive(member)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                                Manage status
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>

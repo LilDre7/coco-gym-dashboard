@@ -39,8 +39,13 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
           sidebarOpen ? "w-64" : "w-20"
         )}
       >
-        <div className="flex h-16 items-center justify-between px-3">
-          <div className="flex items-center gap-3">
+        <div className="flex h-24 flex-col items-center justify-start gap-2 px-3 pb-2 pt-4">
+          <div
+            className={cn(
+              "flex w-full items-center",
+              sidebarOpen ? "justify-start gap-3" : "justify-center"
+            )}
+          >
             <Image
               src="/images/logo.png"
               alt="Coco Gym Fitness logo"
@@ -62,7 +67,10 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
             size="icon-sm"
             onClick={onToggleSidebar}
             title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className={cn(
+              "text-muted-foreground transition-colors hover:text-foreground",
+              sidebarOpen ? "self-start" : "self-center"
+            )}
           >
             <PanelLeft
               className={cn(
