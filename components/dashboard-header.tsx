@@ -35,7 +35,7 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
     <>
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 hidden border-r border-border/60 bg-background transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] md:flex md:flex-col",
+          "fixed bottom-0 left-0 top-7 z-40 hidden border-r border-border/60 bg-background transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] md:flex md:flex-col",
           sidebarOpen ? "w-64" : "w-20"
         )}
       >
@@ -132,7 +132,7 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
         </div>
       </aside>
 
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background md:hidden">
+      <header className="sticky top-7 z-30 border-b border-border/60 bg-background md:hidden">
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
             <Image

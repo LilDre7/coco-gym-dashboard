@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { ExchangeRateBar } from "@/components/exchange-rate-bar";
 import { cn } from "@/lib/utils";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -9,6 +10,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-muted/30">
+      <ExchangeRateBar />
       <DashboardHeader
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}

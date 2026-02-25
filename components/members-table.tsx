@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -73,6 +73,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 
 interface MembersTableProps {
   members: MemberWithStatus[];
@@ -106,6 +107,7 @@ const statusConfig: Record<
 
 export function MembersTable({ members }: MembersTableProps) {
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [nameFilter, setNameFilter] = useState("");
   const [disciplineFilter, setDisciplineFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -121,6 +123,53 @@ export function MembersTable({ members }: MembersTableProps) {
   const [hardDeletingMemberId, setHardDeletingMemberId] = useState<string | null>(null);
   const [memberToToggleActive, setMemberToToggleActive] = useState<MemberWithStatus | null>(null);
   const [openingWhatsAppId, setOpeningWhatsAppId] = useState<string | null>(null);
+  const [signedPhotoUrls, setSignedPhotoUrls] = useState<Record<string, string>>({});
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function hydrateSignedUrls() {
+      const storagePaths = Array.from(
+        new Set(
+          members
+            .map((member) => member.photo_url)
+            .filter((value) => value && !/^https?:\/\//i.test(value))
+        )
+      );
+
+      if (storagePaths.length === 0) {
+        setSignedPhotoUrls({});
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from("faces")
+        .createSignedUrls(storagePaths, 60 * 60);
+
+      if (!isMounted) return;
+      if (error) {
+        console.error("Failed to create signed URLs for member photos:", error);
+        return;
+      }
+
+      const nextMap: Record<string, string> = {};
+      for (const item of data) {
+        if (item.path && item.signedUrl) {
+          nextMap[item.path] = item.signedUrl;
+        }
+      }
+      setSignedPhotoUrls(nextMap);
+    }
+
+    void hydrateSignedUrls();
+    return () => {
+      isMounted = false;
+    };
+  }, [members, supabase]);
 
   const totals = {
     total: members.length,
@@ -262,6 +311,12 @@ export function MembersTable({ members }: MembersTableProps) {
     setPhotoOpen(true);
   };
 
+  const resolvePhotoUrl = (photoValue: string) => {
+    if (!photoValue) return "";
+    if (/^https?:\/\//i.test(photoValue)) return photoValue;
+    return signedPhotoUrls[photoValue] || "";
+  };
+
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -312,36 +367,44 @@ export function MembersTable({ members }: MembersTableProps) {
               placeholder="Search by name..."
               className="w-full sm:w-[230px] lg:h-11 lg:text-base"
             />
-            <Select
-              value={disciplineFilter}
-              onValueChange={setDisciplineFilter}
-            >
-              <SelectTrigger className="w-full sm:w-[170px] lg:h-11 lg:text-base">
-                <SelectValue placeholder="All Disciplines" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Disciplines</SelectItem>
-                {(
-                  Object.entries(disciplineLabels) as [Discipline, string][]
-                ).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[150px] lg:h-11 lg:text-base">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="expiring">Expiring</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+            {isHydrated ? (
+              <Select
+                value={disciplineFilter}
+                onValueChange={setDisciplineFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[170px] lg:h-11 lg:text-base">
+                  <SelectValue placeholder="All Disciplines" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Disciplines</SelectItem>
+                  {(
+                    Object.entries(disciplineLabels) as [Discipline, string][]
+                  ).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="h-10 w-full rounded-md border border-input bg-background sm:w-[170px] lg:h-11" />
+            )}
+            {isHydrated ? (
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[150px] lg:h-11 lg:text-base">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="expiring">Expiring</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="h-10 w-full rounded-md border border-input bg-background sm:w-[150px] lg:h-11" />
+            )}
             <Button onClick={handleAdd} className="w-full sm:w-auto lg:h-11 lg:px-5 lg:text-base">
               <Plus className="h-4 w-4" />
               Add Member
@@ -392,7 +455,10 @@ export function MembersTable({ members }: MembersTableProps) {
                             title="View photo"
                           >
                             <Avatar className="size-8 lg:size-10">
-                              <AvatarImage src={member.photo_url || ""} alt={member.name} />
+                              <AvatarImage
+                                src={resolvePhotoUrl(member.photo_url) || undefined}
+                                alt={member.name}
+                              />
                               <AvatarFallback className="text-xs font-semibold lg:text-sm">
                                 {getInitials(member.name)}
                               </AvatarFallback>
@@ -527,18 +593,18 @@ export function MembersTable({ members }: MembersTableProps) {
           </DialogHeader>
           {selectedMember && (
             <div className="space-y-3 pb-2">
-              {selectedMember.photo_url ? (
+              {resolvePhotoUrl(selectedMember.photo_url) ? (
                 <>
                   <div className="overflow-hidden rounded-xl bg-muted">
                     <img
-                      src={selectedMember.photo_url}
+                      src={resolvePhotoUrl(selectedMember.photo_url)}
                       alt={selectedMember.name}
                       className="max-h-[75vh] w-full object-contain"
                     />
                   </div>
                   <div className="flex justify-end">
                     <a
-                      href={selectedMember.photo_url}
+                      href={resolvePhotoUrl(selectedMember.photo_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-medium text-primary underline underline-offset-4"

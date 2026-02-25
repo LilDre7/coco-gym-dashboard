@@ -4,7 +4,9 @@ export type Discipline =
   | "week-3"
   | "day-pass"
   | "routine-monthly"
-  | "simple-monthly";
+  | "simple-monthly"
+  | "crossfit"
+  | "personal-trainer";
 
 export type MemberStatus = "active" | "expiring" | "expired" | "inactive";
 
@@ -40,6 +42,8 @@ export const disciplineLabels: Record<Discipline, string> = {
   "day-pass": "Day Pass",
   "routine-monthly": "Mensualidad Routine",
   "simple-monthly": "Mensualidad Simple",
+  crossfit: "Crossfit",
+  "personal-trainer": "Personal Trainer",
 };
 
 export const disciplineFeesUSD: Record<Discipline, number> = {
@@ -49,6 +53,8 @@ export const disciplineFeesUSD: Record<Discipline, number> = {
   "day-pass": 10,
   "routine-monthly": 72,
   "simple-monthly": 54,
+  crossfit: 84,
+  "personal-trainer": 120,
 };
 
 export const disciplineFeesCRC: Record<Discipline, number> = {
@@ -58,4 +64,6 @@ export const disciplineFeesCRC: Record<Discipline, number> = {
   "day-pass": 5000,
   "routine-monthly": 36000,
   "simple-monthly": 27000,
+  crossfit: 42000,
+  "personal-trainer": 60000,
 };

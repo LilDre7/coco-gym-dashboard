@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -22,9 +23,11 @@ import {
   Discipline,
   Currency,
   disciplineLabels,
-  disciplineFeesUSD,
   disciplineFeesCRC,
 } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import { Camera, Loader2, Upload } from "lucide-react";
+import { toast } from "sonner";
 
 interface MemberFormProps {
   open: boolean;
@@ -63,6 +66,11 @@ export function MemberForm({
   const [endDate, setEndDate] = useState("");
   const [phone, setPhone] = useState("");
   const [description, setDescription] = useState("");
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [isRateLoading, setIsRateLoading] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     if (member) {
@@ -85,11 +93,75 @@ export function MemberForm({
       setEndDate("");
       setPhone("");
       setDescription("");
+      setPhotoPreviewUrl("");
     }
   }, [member, open]);
 
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPreview() {
+      if (!photoUrl) {
+        setPhotoPreviewUrl("");
+        return;
+      }
+      if (/^https?:\/\//i.test(photoUrl)) {
+        setPhotoPreviewUrl(photoUrl);
+        return;
+      }
+      const { data, error } = await supabase.storage
+        .from("faces")
+        .createSignedUrl(photoUrl, 60 * 60);
+      if (!isMounted) return;
+      if (error) {
+        console.error("Failed to create signed photo URL:", error);
+        setPhotoPreviewUrl("");
+        return;
+      }
+      setPhotoPreviewUrl(data.signedUrl);
+    }
+    void loadPreview();
+    return () => {
+      isMounted = false;
+    };
+  }, [photoUrl, supabase]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadExchangeRate() {
+      setIsRateLoading(true);
+      try {
+        const response = await fetch("/api/exchange-rate", { cache: "no-store" });
+        if (!response.ok) throw new Error("Failed to load exchange rate");
+        const payload = (await response.json()) as { rate?: number };
+        if (!isMounted) return;
+        if (typeof payload.rate === "number" && Number.isFinite(payload.rate) && payload.rate > 0) {
+          setExchangeRate(payload.rate);
+        } else {
+          setExchangeRate(null);
+        }
+      } catch {
+        if (!isMounted) return;
+        setExchangeRate(null);
+      } finally {
+        if (!isMounted) return;
+        setIsRateLoading(false);
+      }
+    }
+
+    if (open) {
+      void loadExchangeRate();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [open]);
+
   const getFeeForDiscipline = (d: Discipline, c: Currency) => {
-    return c === "CRC" ? disciplineFeesCRC[d] : disciplineFeesUSD[d];
+    const feeCRC = disciplineFeesCRC[d];
+    if (c === "CRC") return feeCRC;
+    if (!exchangeRate || exchangeRate <= 0) return 0;
+    return Math.round((feeCRC / exchangeRate) * 100) / 100;
   };
 
   const handleDisciplineChange = (value: Discipline) => {
@@ -100,6 +172,72 @@ export function MemberForm({
   const handleCurrencyChange = (value: Currency) => {
     setCurrency(value);
     setMonthlyFee(getFeeForDiscipline(discipline, value));
+  };
+
+  useEffect(() => {
+    if (currency !== "USD" || !exchangeRate || exchangeRate <= 0) return;
+    setMonthlyFee(getFeeForDiscipline(discipline, "USD"));
+  }, [currency, discipline, exchangeRate]);
+
+  const handlePhotoFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecciona un archivo de imagen");
+      e.target.value = "";
+      return;
+    }
+
+    const maxSizeInBytes = 5 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      toast.error("La imagen supera el limite de 5MB");
+      e.target.value = "";
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error("No authenticated user");
+
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+      const oldPath =
+        photoUrl && !/^https?:\/\//i.test(photoUrl) ? photoUrl : null;
+
+      const { error: uploadError } = await supabase.storage
+        .from("faces")
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+        });
+      if (uploadError) throw uploadError;
+
+      if (oldPath && oldPath !== filePath) {
+        const { error: removeError } = await supabase.storage
+          .from("faces")
+          .remove([oldPath]);
+        if (removeError) {
+          console.warn("Failed to remove previous photo:", removeError);
+        }
+      }
+
+      setPhotoUrl(filePath);
+      toast.success("Foto subida correctamente");
+    } catch (error) {
+      console.error("Photo upload failed:", error);
+      toast.error("No se pudo subir la foto");
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = "";
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -142,16 +280,83 @@ export function MemberForm({
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="photoUrl" className="text-sm font-medium">
-              Photo URL
+            <label htmlFor="photoUpload" className="text-sm font-medium">
+              Foto del cliente
             </label>
-            <Input
-              id="photoUrl"
-              type="url"
-              value={photoUrl}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              placeholder="https://example.com/photo.jpg"
-            />
+            <div className="rounded-lg border border-dashed p-3">
+              <div className="flex items-center gap-3">
+                <Avatar className="size-16">
+                  <AvatarImage
+                    src={photoPreviewUrl || undefined}
+                    alt={name || "Client"}
+                  />
+                  <AvatarFallback className="text-xs">
+                    {name
+                      .trim()
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase() ?? "")
+                      .join("") || "N/A"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>Toma la foto desde el celular del gym y subela al momento.</p>
+                  <p>La imagen se guarda privada en Supabase Storage.</p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isUploadingPhoto}
+                  onClick={() =>
+                    document.getElementById("photoUploadCamera")?.click()
+                  }
+                >
+                  {isUploadingPhoto ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                  Tomar foto
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isUploadingPhoto}
+                  onClick={() =>
+                    document.getElementById("photoUploadFile")?.click()
+                  }
+                >
+                  {isUploadingPhoto ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Subir archivo
+                </Button>
+              </div>
+              <Input
+                id="photoUploadCamera"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handlePhotoFileChange}
+              />
+              <Input
+                id="photoUploadFile"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoFileChange}
+              />
+              {photoUrl && (
+                <p className="mt-2 break-all text-xs text-muted-foreground">
+                  Storage path: {photoUrl}
+                </p>
+              )}
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -203,6 +408,15 @@ export function MemberForm({
               min={0}
               required
             />
+            {currency === "USD" && (
+              <p className="text-xs text-muted-foreground">
+                {isRateLoading
+                  ? "Cargando tipo de cambio..."
+                  : exchangeRate
+                    ? `Tasa usada: 1 USD = ${exchangeRate.toFixed(2)} CRC`
+                    : "No se pudo cargar la tasa. Puedes escribir el precio manualmente."}
+              </p>
+            )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

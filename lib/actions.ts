@@ -14,6 +14,11 @@ function isMissingMembersPhotoUrlColumnError(message: string): boolean {
   );
 }
 
+function isStoragePath(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return !/^https?:\/\//i.test(value);
+}
+
 export async function getMembers(): Promise<MemberRow[]> {
   const supabase = await createClient();
   const {
@@ -141,6 +146,15 @@ export async function hardDeleteMember(id: string) {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  const { data: existingMember, error: fetchError } = await supabase
+    .from("members")
+    .select("photo_url")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+
   const { error } = await supabase
     .from("members")
     .delete()
@@ -148,6 +162,17 @@ export async function hardDeleteMember(id: string) {
     .eq("user_id", user.id);
 
   if (error) throw new Error(error.message);
+
+  const existingPhotoPath = existingMember?.photo_url ?? "";
+  if (isStoragePath(existingPhotoPath)) {
+    const { error: storageError } = await supabase.storage
+      .from("faces")
+      .remove([existingPhotoPath]);
+    if (storageError) {
+      console.warn("Failed to delete member photo from storage:", storageError);
+    }
+  }
+
   revalidateTag("members", "max");
 }
 
