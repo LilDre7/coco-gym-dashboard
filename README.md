@@ -1,4 +1,4 @@
-<div align="left">
+<div align="right">
 
 # 🥥 Coco Gym Fitness Dashboard
 
