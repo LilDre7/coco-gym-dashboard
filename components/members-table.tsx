@@ -20,6 +20,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -42,9 +52,27 @@ import {
   formatPhoneForWhatsApp,
   formatTenure,
 } from "@/lib/member-utils";
-import { addMember, updateMember, deleteMember } from "@/lib/actions";
-import { Plus, Pencil, Trash2, MessageCircle } from "lucide-react";
+import {
+  addMember,
+  updateMember,
+  renewMember,
+  setMemberActiveStatus,
+  hardDeleteMember,
+} from "@/lib/actions";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  MessageCircle,
+  AlertTriangle,
+  Users,
+  ShieldCheck,
+  Clock3,
+  OctagonAlert,
+  Loader2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface MembersTableProps {
   members: MemberWithStatus[];
@@ -56,23 +84,23 @@ const statusConfig: Record<
 > = {
   active: {
     label: "Active",
-    className: "bg-primary/10 text-primary border-primary/20",
-    rowClassName: "bg-primary/5",
+    className: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    rowClassName: "",
   },
   expiring: {
     label: "Expiring",
     className: "bg-amber-100 text-amber-700 border-amber-200",
-    rowClassName: "bg-amber-50/50",
+    rowClassName: "bg-amber-50/70",
   },
   expired: {
     label: "Expired",
-    className: "bg-destructive/10 text-destructive border-destructive/20",
-    rowClassName: "bg-destructive/5",
+    className: "bg-red-100 text-red-700 border-red-200",
+    rowClassName: "bg-red-50/80",
   },
   inactive: {
     label: "Inactive",
-    className: "bg-muted text-muted-foreground border-border",
-    rowClassName: "bg-muted/30",
+    className: "bg-sky-100 text-sky-700 border-sky-200",
+    rowClassName: "bg-sky-50/70",
   },
 };
 
@@ -88,6 +116,20 @@ export function MembersTable({ members }: MembersTableProps) {
   );
   const [editingMember, setEditingMember] = useState<MemberRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [renewingMemberId, setRenewingMemberId] = useState<string | null>(null);
+  const [togglingMemberId, setTogglingMemberId] = useState<string | null>(null);
+  const [hardDeletingMemberId, setHardDeletingMemberId] = useState<string | null>(null);
+  const [memberToToggleActive, setMemberToToggleActive] = useState<MemberWithStatus | null>(null);
+  const [openingWhatsAppId, setOpeningWhatsAppId] = useState<string | null>(null);
+
+  const totals = {
+    total: members.length,
+    active: members.filter((member) => member.status === "active").length,
+    expiring: members.filter(
+      (member) => member.days_remaining >= 0 && member.days_remaining <= 7
+    ).length,
+    expired: members.filter((member) => member.status === "expired").length,
+  };
 
   const filteredMembers = members.filter((member) => {
     const normalizedNameFilter = nameFilter.trim().toLowerCase();
@@ -129,30 +171,82 @@ export function MembersTable({ members }: MembersTableProps) {
     try {
       if (id) {
         await updateMember(id, data);
+        toast.success("Membresía actualizada");
       } else {
         await addMember(data);
+        toast.success("Miembro agregado");
       }
       setFormOpen(false);
       router.refresh();
     } catch (err) {
       console.error("Failed to save member:", err);
+      toast.error("No se pudo guardar el miembro");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleToggleActive = async () => {
+    if (!memberToToggleActive) return;
+    const willBeActive = memberToToggleActive.status === "inactive";
+    setTogglingMemberId(memberToToggleActive.id);
     try {
-      await deleteMember(id);
+      await setMemberActiveStatus(memberToToggleActive.id, willBeActive);
+      toast.success(
+        willBeActive ? "Member marked as active" : "Member marked as inactive"
+      );
+      setMemberToToggleActive(null);
       router.refresh();
     } catch (err) {
-      console.error("Failed to delete member:", err);
+      console.error("Failed to update member active status:", err);
+      toast.error("No se pudo actualizar el estado del miembro");
+    } finally {
+      setTogglingMemberId(null);
     }
   };
 
-  const handleWhatsApp = (phone: string) => {
+  const handleHardDelete = async () => {
+    if (!memberToToggleActive) return;
+    setHardDeletingMemberId(memberToToggleActive.id);
+    try {
+      await hardDeleteMember(memberToToggleActive.id);
+      toast.success("Member deleted permanently");
+      setMemberToToggleActive(null);
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to permanently delete member:", err);
+      toast.error("No se pudo eliminar el miembro del todo");
+    } finally {
+      setHardDeletingMemberId(null);
+    }
+  };
+
+  const handleRenew = async (id: string) => {
+    setRenewingMemberId(id);
+    try {
+      await renewMember(id);
+      toast.success("Membresía renovada (+30 días)");
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to renew member:", err);
+      toast.error("No se pudo renovar la membresía");
+    } finally {
+      setRenewingMemberId(null);
+    }
+  };
+
+  const handleWhatsApp = (phone: string, memberId: string) => {
     const formattedPhone = formatPhoneForWhatsApp(phone);
+    if (!formattedPhone) {
+      toast.error("Número inválido para WhatsApp");
+      return;
+    }
+    setOpeningWhatsAppId(memberId);
     window.open(`https://wa.me/${formattedPhone}`, "_blank");
+    toast("Abriendo WhatsApp", {
+      description: formattedPhone ? `+${formattedPhone}` : "Contacto",
+    });
+    setTimeout(() => setOpeningWhatsAppId((current) => (current === memberId ? null : current)), 400);
   };
 
   const getInitials = (name: string) =>
@@ -170,6 +264,44 @@ export function MembersTable({ members }: MembersTableProps) {
 
   return (
     <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Total Members</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-0">
+            <p className="text-2xl font-semibold">{totals.total}</p>
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+        <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Active</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-0">
+            <p className="text-2xl font-semibold text-emerald-700">{totals.active}</p>
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+          </CardContent>
+        </Card>
+        <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Expiring (7d)</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-0">
+            <p className="text-2xl font-semibold text-amber-700">{totals.expiring}</p>
+            <Clock3 className="h-5 w-5 text-amber-600" />
+          </CardContent>
+        </Card>
+        <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Expired</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-0">
+            <p className="text-2xl font-semibold text-red-700">{totals.expired}</p>
+            <OctagonAlert className="h-5 w-5 text-red-600" />
+          </CardContent>
+        </Card>
+      </div>
       <Card>
         <CardHeader className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8 lg:py-6">
           <CardTitle className="text-xl lg:text-2xl">Members</CardTitle>
@@ -207,6 +339,7 @@ export function MembersTable({ members }: MembersTableProps) {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="expiring">Expiring</SelectItem>
                 <SelectItem value="expired">Expired</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
             <Button onClick={handleAdd} className="w-full sm:w-auto lg:h-11 lg:px-5 lg:text-base">
@@ -249,13 +382,13 @@ export function MembersTable({ members }: MembersTableProps) {
                 filteredMembers.map((member) => {
                   const config = statusConfig[member.status];
                   return (
-                    <TableRow key={member.id} className={config.rowClassName}>
+                    <TableRow key={member.id} className={`${config.rowClassName} transition-all duration-200`}>
                       <TableCell className="font-medium lg:text-[1.05rem]">
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
                             onClick={() => handleOpenPhoto(member)}
-                            className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="rounded-full transition-transform duration-200 ease-out hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             title="View photo"
                           >
                             <Avatar className="size-8 lg:size-10">
@@ -282,14 +415,19 @@ export function MembersTable({ members }: MembersTableProps) {
                           className={
                             member.days_remaining < 0
                               ? "font-medium text-destructive"
-                              : member.days_remaining <= 5
+                              : member.days_remaining <= 7
                                 ? "font-medium text-amber-600"
                                 : "text-foreground"
                           }
                         >
-                          {member.days_remaining < 0
-                            ? `${Math.abs(member.days_remaining)}d overdue`
-                            : `${member.days_remaining}d`}
+                          {member.days_remaining < 0 ? (
+                            <span className="inline-flex items-center gap-1">
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              {`${Math.abs(member.days_remaining)}d overdue`}
+                            </span>
+                          ) : (
+                            `${member.days_remaining}d`
+                          )}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -297,6 +435,9 @@ export function MembersTable({ members }: MembersTableProps) {
                           variant="outline"
                           className={`${config.className} lg:px-3 lg:py-1 lg:text-sm`}
                         >
+                          {member.status === "expired" && (
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          )}
                           {config.label}
                         </Badge>
                       </TableCell>
@@ -313,19 +454,41 @@ export function MembersTable({ members }: MembersTableProps) {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1 lg:gap-2">
+                          {(member.status === "expiring" ||
+                            member.status === "expired" ||
+                            member.status === "inactive") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
+                              onClick={() => handleRenew(member.id)}
+                              disabled={renewingMemberId === member.id}
+                              title="Renew membership (+30 days) and reactivate"
+                            >
+                              {renewingMemberId === member.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : member.status === "inactive"
+                                  ? "Reactivar"
+                                  : "Renovar"}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            className="lg:size-9"
-                            onClick={() => handleWhatsApp(member.phone)}
+                            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
+                            onClick={() => handleWhatsApp(member.phone, member.id)}
                             title="WhatsApp"
                           >
-                            <MessageCircle className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
+                            {openingWhatsAppId === member.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-primary lg:h-5 lg:w-5" />
+                            ) : (
+                              <MessageCircle className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            className="lg:size-9"
+                            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
                             onClick={() => handleEdit(member)}
                             title="Edit"
                           >
@@ -334,9 +497,9 @@ export function MembersTable({ members }: MembersTableProps) {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            className="lg:size-9"
-                            onClick={() => handleDelete(member.id)}
-                            title="Delete"
+                            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
+                            onClick={() => setMemberToToggleActive(member)}
+                            title="Manage member status"
                           >
                             <Trash2 className="h-4 w-4 text-destructive lg:h-5 lg:w-5" />
                           </Button>
@@ -397,6 +560,62 @@ export function MembersTable({ members }: MembersTableProps) {
           )}
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={Boolean(memberToToggleActive)}
+        onOpenChange={(open) => {
+          if (!open && !togglingMemberId && !hardDeletingMemberId) {
+            setMemberToToggleActive(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="max-w-md rounded-2xl border-border/60 p-6 shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">
+              Manage member
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              {memberToToggleActive
+                ? memberToToggleActive.status === "inactive"
+                  ? `${memberToToggleActive.name} is inactive. You can mark this member as active or delete permanently.`
+                  : `${memberToToggleActive.name} can be marked as inactive (history preserved) or deleted permanently.`
+                : "Member status will be updated."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(togglingMemberId || hardDeletingMemberId)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleToggleActive}
+              disabled={Boolean(togglingMemberId || hardDeletingMemberId)}
+              className="bg-foreground text-background transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-foreground/90 active:scale-[0.98]"
+            >
+              {togglingMemberId ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </span>
+              ) : (
+                memberToToggleActive?.status === "inactive" ? "Mark active" : "Mark inactive"
+              )}
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleHardDelete}
+              disabled={Boolean(togglingMemberId || hardDeletingMemberId)}
+              className="bg-destructive text-white transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-destructive/90 active:scale-[0.98]"
+            >
+              {hardDeletingMemberId ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </span>
+              ) : (
+                "Delete permanently"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

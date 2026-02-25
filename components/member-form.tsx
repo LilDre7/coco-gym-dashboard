@@ -56,9 +56,9 @@ export function MemberForm({
 }: MemberFormProps) {
   const [name, setName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
-  const [discipline, setDiscipline] = useState<Discipline>("gym");
-  const [currency, setCurrency] = useState<Currency>("USD");
-  const [monthlyFee, setMonthlyFee] = useState(50);
+  const [discipline, setDiscipline] = useState<Discipline>("routine-monthly");
+  const [currency, setCurrency] = useState<Currency>("CRC");
+  const [monthlyFee, setMonthlyFee] = useState(36000);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [phone, setPhone] = useState("");
@@ -69,7 +69,7 @@ export function MemberForm({
       setName(member.name);
       setPhotoUrl(member.photo_url || "");
       setDiscipline(member.discipline);
-      setCurrency(member.currency || "USD");
+      setCurrency(member.currency || "CRC");
       setMonthlyFee(member.monthly_fee);
       setStartDate(member.start_date);
       setEndDate(member.end_date);
@@ -78,9 +78,9 @@ export function MemberForm({
     } else {
       setName("");
       setPhotoUrl("");
-      setDiscipline("gym");
-      setCurrency("USD");
-      setMonthlyFee(disciplineFeesUSD["gym"]);
+      setDiscipline("routine-monthly");
+      setCurrency("CRC");
+      setMonthlyFee(disciplineFeesCRC["routine-monthly"]);
       setStartDate(new Date().toISOString().split("T")[0]);
       setEndDate("");
       setPhone("");

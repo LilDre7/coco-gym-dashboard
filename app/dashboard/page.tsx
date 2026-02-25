@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const enrichedMembers = members.map(enrichMemberData);
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
+    <main className="w-full space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">

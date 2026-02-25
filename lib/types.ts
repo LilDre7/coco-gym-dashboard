@@ -1,9 +1,10 @@
 export type Discipline =
-  | "gym"
-  | "gym-simple"
-  | "personal"
-  | "crossfit"
-  | "sessions";
+  | "week-1"
+  | "week-2"
+  | "week-3"
+  | "day-pass"
+  | "routine-monthly"
+  | "simple-monthly";
 
 export type MemberStatus = "active" | "expiring" | "expired" | "inactive";
 
@@ -33,25 +34,28 @@ export interface MemberWithStatus extends MemberRow {
 }
 
 export const disciplineLabels: Record<Discipline, string> = {
-  gym: "Gym",
-  "gym-simple": "Gym Simple",
-  personal: "Personal Training",
-  crossfit: "CrossFit",
-  sessions: "Sessions",
+  "week-1": "1 Semana",
+  "week-2": "2 Semanas",
+  "week-3": "3 Semanas",
+  "day-pass": "Day Pass",
+  "routine-monthly": "Mensualidad Routine",
+  "simple-monthly": "Mensualidad Simple",
 };
 
 export const disciplineFeesUSD: Record<Discipline, number> = {
-  gym: 50,
-  "gym-simple": 35,
-  personal: 120,
-  crossfit: 80,
-  sessions: 15,
+  "week-1": 30,
+  "week-2": 40,
+  "week-3": 46,
+  "day-pass": 10,
+  "routine-monthly": 72,
+  "simple-monthly": 54,
 };
 
 export const disciplineFeesCRC: Record<Discipline, number> = {
-  gym: 25000,
-  "gym-simple": 18000,
-  personal: 60000,
-  crossfit: 40000,
-  sessions: 7500,
+  "week-1": 15000,
+  "week-2": 20000,
+  "week-3": 23000,
+  "day-pass": 5000,
+  "routine-monthly": 36000,
+  "simple-monthly": 27000,
 };

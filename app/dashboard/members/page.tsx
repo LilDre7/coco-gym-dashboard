@@ -7,7 +7,7 @@ export default async function MembersPage() {
   const enrichedMembers = members.map(enrichMemberData);
 
   return (
-    <main className="mx-auto max-w-[96rem] space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8">
+    <main className="w-full space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8">
       <div>
         <h1 className="text-2xl font-semibold text-foreground lg:text-3xl">Members</h1>
         <p className="text-muted-foreground lg:text-base">

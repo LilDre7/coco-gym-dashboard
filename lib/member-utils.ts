@@ -18,15 +18,16 @@ export function calculateTenureDays(startDate: string): number {
   return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 }
 
-export function getStatus(daysRemaining: number): MemberStatus {
+export function getStatus(daysRemaining: number, isActive: boolean): MemberStatus {
+  if (!isActive) return "inactive";
   if (daysRemaining < 0) return "expired";
-  if (daysRemaining <= 5) return "expiring";
+  if (daysRemaining <= 7) return "expiring";
   return "active";
 }
 
 export function enrichMemberData(member: MemberRow): MemberWithStatus {
   const days_remaining = calculateDaysRemaining(member.end_date);
-  const status = getStatus(days_remaining);
+  const status = getStatus(days_remaining, member.is_active);
   const tenure_days = calculateTenureDays(member.start_date);
   return { ...member, days_remaining, status, tenure_days };
 }
@@ -40,7 +41,9 @@ export function formatTenure(tenureDays: number): string {
 }
 
 export function formatPhoneForWhatsApp(phone: string): string {
-  return phone.replace(/\D/g, "");
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 8) return `506${digits}`;
+  return digits;
 }
 
 export function formatCurrency(

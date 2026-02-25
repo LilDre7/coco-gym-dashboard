@@ -4,8 +4,9 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutDashboard, Users, BarChart3 } from "lucide-react";
+import { LogOut, LayoutDashboard, Users, BarChart3, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -13,31 +14,71 @@ const navItems = [
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+}
+
+export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
 
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    toast.success("Sesión cerrada");
     router.push("/");
     router.refresh();
   };
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-border/60 bg-background md:flex md:flex-col">
-        <div className="flex h-16 items-center gap-3 px-5">
-          <Image
-            src="/images/logo.png"
-            alt="Coco Gym Fitness logo"
-            width={34}
-            height={34}
-            className="rounded-full"
-          />
-          <span className="text-base font-semibold tracking-tight text-foreground">Coco Gym</span>
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 hidden border-r border-border/60 bg-background transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] md:flex md:flex-col",
+          sidebarOpen ? "w-64" : "w-20"
+        )}
+      >
+        <div className="flex h-16 items-center justify-between px-3">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/images/logo.png"
+              alt="Coco Gym Fitness logo"
+              width={34}
+              height={34}
+              className="rounded-full"
+            />
+            <span
+              className={cn(
+                "overflow-hidden whitespace-nowrap text-base font-semibold tracking-tight text-foreground transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                sidebarOpen ? "max-w-[140px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-1"
+              )}
+            >
+              Coco Gym
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onToggleSidebar}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <PanelLeft
+              className={cn(
+                "h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                !sidebarOpen && "rotate-180"
+              )}
+            />
+          </Button>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3 py-2" aria-label="Main navigation">
+        <nav
+          className={cn(
+            "flex flex-1 flex-col gap-1 py-2 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            sidebarOpen ? "px-3" : "px-2"
+          )}
+          aria-label="Main navigation"
+        >
           {navItems.map((item) => {
             const isActive =
               item.href === "/dashboard"
@@ -48,25 +89,45 @@ export function DashboardHeader() {
                 key={item.href}
                 variant="ghost"
                 onClick={() => router.push(item.href)}
+                title={!sidebarOpen ? item.label : undefined}
                 className={cn(
-                  "h-10 justify-start gap-2.5 rounded-lg px-3 text-sm font-normal text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  "h-10 rounded-lg text-sm font-normal text-muted-foreground transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted/60 hover:text-foreground",
+                  sidebarOpen ? "justify-start gap-2.5 px-3" : "justify-center gap-0 px-0",
                   isActive && "bg-muted text-foreground"
                 )}
               >
-                <item.icon className="h-4 w-4" />
-                {item.label}
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span
+                  className={cn(
+                    "overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    sidebarOpen ? "max-w-[120px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-1"
+                  )}
+                >
+                  {item.label}
+                </span>
               </Button>
             );
           })}
         </nav>
-        <div className="p-3">
+        <div className={cn("p-3", !sidebarOpen && "px-2")}>
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className="h-10 w-full justify-start gap-2.5 rounded-lg px-3 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            title={!sidebarOpen ? "Sign out" : undefined}
+            className={cn(
+              "h-10 rounded-lg text-muted-foreground transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted/60 hover:text-foreground",
+              sidebarOpen ? "w-full justify-start gap-2.5 px-3" : "w-full justify-center gap-0 px-0"
+            )}
           >
-            <LogOut className="h-4 w-4" />
-            Sign out
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span
+              className={cn(
+                "overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                sidebarOpen ? "max-w-[120px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-1"
+              )}
+            >
+              Sign out
+            </span>
           </Button>
         </div>
       </aside>
