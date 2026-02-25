@@ -1,4 +1,4 @@
-<div align="center">
+<div align="left">
 
 # 🥥 Coco Gym Fitness Dashboard
 
@@ -15,7 +15,6 @@
 **[🌐 Ver Demo en Vivo](https://coco-gym-dashboard.vercel.app/)** · **[🐛 Reportar Bug](https://github.com/LilDre7/coco-gym-dashboard/issues)** · **[💡 Solicitar Feature](https://github.com/LilDre7/coco-gym-dashboard/issues)**
 
 </div>
----
 
 ## ✨ Características principales
 
