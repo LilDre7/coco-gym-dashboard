@@ -4,7 +4,14 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, LayoutDashboard, Users, BarChart3, PanelLeft } from "lucide-react";
+import {
+  LogOut,
+  LayoutDashboard,
+  Users,
+  BarChart3,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -62,24 +69,23 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
               Coco Gym
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onToggleSidebar}
-            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            className={cn(
-              "text-muted-foreground transition-colors hover:text-foreground",
-              sidebarOpen ? "self-start" : "self-center"
-            )}
-          >
-            <PanelLeft
-              className={cn(
-                "h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                !sidebarOpen && "rotate-180"
-              )}
-            />
-          </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onToggleSidebar}
+          title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          className="absolute top-1/2 -right-3 z-20 h-8 w-8 -translate-y-1/2 rounded-full border border-border/80 bg-background text-foreground shadow-md transition-all duration-200 hover:bg-muted hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring/70"
+        >
+          {sidebarOpen ? (
+            <ChevronsLeft className="h-4 w-4" />
+          ) : (
+            <ChevronsRight className="h-4 w-4" />
+          )}
+          <span className="sr-only">
+            {sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          </span>
+        </Button>
         <nav
           className={cn(
             "flex flex-1 flex-col gap-1 py-2 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",

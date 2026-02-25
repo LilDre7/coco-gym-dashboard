@@ -291,18 +291,28 @@ export function MembersTable({ members }: MembersTableProps) {
     }
   };
 
-  const handleWhatsApp = (phone: string, memberId: string) => {
-    const formattedPhone = formatPhoneForWhatsApp(phone);
+  const handleWhatsApp = (member: MemberWithStatus) => {
+    const formattedPhone = formatPhoneForWhatsApp(member.phone);
     if (!formattedPhone) {
       toast.error("Número inválido para WhatsApp");
       return;
     }
-    setOpeningWhatsAppId(memberId);
-    window.open(`https://wa.me/${formattedPhone}`, "_blank");
+    const expirationDate = formatDate(member.end_date);
+    const prefilledMessage = `Hola ${member.name}, te recordamos que tu membresía vence el ${expirationDate}.`;
+    const encodedMessage = encodeURIComponent(prefilledMessage);
+
+    setOpeningWhatsAppId(member.id);
+    window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, "_blank");
     toast("Abriendo WhatsApp", {
-      description: formattedPhone ? `+${formattedPhone}` : "Contacto",
+      description: `${member.name} · vence ${expirationDate}`,
     });
-    setTimeout(() => setOpeningWhatsAppId((current) => (current === memberId ? null : current)), 400);
+    setTimeout(
+      () =>
+        setOpeningWhatsAppId((current) =>
+          current === member.id ? null : current
+        ),
+      400
+    );
   };
 
   const getInitials = (name: string) =>
@@ -549,7 +559,7 @@ export function MembersTable({ members }: MembersTableProps) {
                             variant="ghost"
                             size="icon-sm"
                             className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
-                            onClick={() => handleWhatsApp(member.phone, member.id)}
+                            onClick={() => handleWhatsApp(member)}
                             title="WhatsApp"
                           >
                             {openingWhatsAppId === member.id ? (
