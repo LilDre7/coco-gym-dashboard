@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   LogOut,
   LayoutDashboard,
@@ -123,7 +124,10 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
             );
           })}
         </nav>
-        <div className={cn("p-3", !sidebarOpen && "px-2")}>
+        <div className={cn("space-y-2 p-3", !sidebarOpen && "px-2")}>
+          <div className={cn("flex", sidebarOpen ? "justify-start" : "justify-center")}>
+            <ThemeToggle vertical showLabels={sidebarOpen} />
+          </div>
           <Button
             variant="ghost"
             onClick={handleLogout}
@@ -166,6 +170,9 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
           >
             <LogOut className="h-4 w-4" />
           </Button>
+        </div>
+        <div className="px-4 pb-2">
+          <ThemeToggle />
         </div>
         <nav className="flex items-center gap-1 overflow-x-auto px-3 py-2" aria-label="Mobile navigation">
           {navItems.map((item) => {

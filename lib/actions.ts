@@ -185,37 +185,35 @@ function toIsoDate(value: Date): string {
   return value.toISOString().split("T")[0];
 }
 
-export async function renewMember(id: string, extensionDays = 30) {
+function addOneCalendarMonthKeepingDay(anchorDate: Date): Date {
+  const year = anchorDate.getFullYear();
+  const targetMonth = anchorDate.getMonth() + 1;
+  const anchorDay = anchorDate.getDate();
+  const lastDayOfTargetMonth = new Date(year, targetMonth + 1, 0).getDate();
+  const clampedDay = Math.min(anchorDay, lastDayOfTargetMonth);
+  return new Date(year, targetMonth, clampedDay);
+}
+
+export async function renewMember(id: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { data: member, error: fetchError } = await supabase
-    .from("members")
-    .select("end_date")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
-
-  if (fetchError) throw new Error(fetchError.message);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const currentEndDate = new Date(member.end_date);
-  currentEndDate.setHours(0, 0, 0, 0);
-
-  const renewalBaseDate = currentEndDate < today ? today : currentEndDate;
-  const renewedEndDate = new Date(renewalBaseDate);
-  renewedEndDate.setDate(renewedEndDate.getDate() + extensionDays);
+  // Renewal is anchored to payment date (today), keeping calendar day:
+  // e.g., pay on 21 -> expires on 21 next month.
+  const renewedEndDate = addOneCalendarMonthKeepingDay(today);
+  const shouldBeActive = renewedEndDate >= today;
 
   const { error: updateError } = await supabase
     .from("members")
     .update({
       end_date: toIsoDate(renewedEndDate),
-      is_active: true,
+      is_active: shouldBeActive,
     })
     .eq("id", id)
     .eq("user_id", user.id);

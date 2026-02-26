@@ -281,7 +281,7 @@ export function MembersTable({ members }: MembersTableProps) {
     setRenewingMemberId(id);
     try {
       await renewMember(id);
-      toast.success("Membresía renovada (+30 días)");
+      toast.success("Membresía renovada (fecha fija mensual)");
       router.refresh();
     } catch (err) {
       console.error("Failed to renew member:", err);
@@ -546,7 +546,7 @@ export function MembersTable({ members }: MembersTableProps) {
                               className="h-8 transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
                               onClick={() => handleRenew(member.id)}
                               disabled={renewingMemberId === member.id}
-                              title="Renew membership (+30 days) and reactivate"
+                              title="Renew membership (fixed monthly date)"
                             >
                               {renewingMemberId === member.id
                                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -568,30 +568,42 @@ export function MembersTable({ members }: MembersTableProps) {
                               <MessageCircle className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
                             )}
                           </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
-                                title="More actions"
-                              >
-                                <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuItem onClick={() => handleEdit(member)}>
-                                <Pencil className="h-4 w-4" />
-                                Edit member
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setMemberToToggleActive(member)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                                Manage status
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {isHydrated ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
+                                  title="More actions"
+                                >
+                                  <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuItem onClick={() => handleEdit(member)}>
+                                  <Pencil className="h-4 w-4" />
+                                  Edit member
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setMemberToToggleActive(member)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                  Manage status
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="transition-all duration-200 ease-out lg:size-9"
+                              title="More actions"
+                              disabled
+                            >
+                              <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
