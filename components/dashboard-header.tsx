@@ -1,10 +1,19 @@
 "use client";
 
+import { FormEvent, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   LogOut,
   LayoutDashboard,
@@ -12,6 +21,7 @@ import {
   BarChart3,
   ChevronsLeft,
   ChevronsRight,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -30,6 +40,10 @@ interface DashboardHeaderProps {
 export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -37,6 +51,39 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
     toast.success("Sesión cerrada");
     router.push("/");
     router.refresh();
+  };
+
+  const handleChangePassword = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (newPassword.length < 6) {
+      toast.error("La nueva contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setUpdatingPassword(true);
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    setUpdatingPassword(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Contraseña actualizada correctamente.");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordDialogOpen(false);
   };
 
   return (
@@ -130,6 +177,25 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
           </div>
           <Button
             variant="ghost"
+            onClick={() => setPasswordDialogOpen(true)}
+            title={!sidebarOpen ? "Cambiar contraseña" : undefined}
+            className={cn(
+              "h-10 rounded-lg text-muted-foreground transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted/60 hover:text-foreground",
+              sidebarOpen ? "w-full justify-start gap-2.5 px-3" : "w-full justify-center gap-0 px-0"
+            )}
+          >
+            <KeyRound className="h-4 w-4 shrink-0" />
+            <span
+              className={cn(
+                "overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                sidebarOpen ? "max-w-[140px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-1"
+              )}
+            >
+              Cambiar contraseña
+            </span>
+          </Button>
+          <Button
+            variant="ghost"
             onClick={handleLogout}
             title={!sidebarOpen ? "Sign out" : undefined}
             className={cn(
@@ -162,14 +228,24 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
             />
             <span className="text-base font-semibold text-foreground">Coco Gym</span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPasswordDialogOpen(true)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <KeyRound className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="px-4 pb-2">
           <ThemeToggle />
@@ -198,6 +274,51 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
           })}
         </nav>
       </header>
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar contraseña</DialogTitle>
+            <DialogDescription>
+              Esto solo actualiza tu contraseña. Tus datos y tu correo seguiran vinculados a la misma cuenta.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="new-password" className="text-sm font-medium text-foreground">
+                Nueva contraseña
+              </label>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Minimo 6 caracteres"
+                required
+                minLength={6}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="confirm-password" className="text-sm font-medium text-foreground">
+                Confirmar contraseña
+              </label>
+              <Input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repite la nueva contraseña"
+                required
+                minLength={6}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={updatingPassword}>
+              {updatingPassword ? "Actualizando..." : "Actualizar contraseña"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

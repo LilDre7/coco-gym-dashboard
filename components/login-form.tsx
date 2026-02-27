@@ -14,6 +14,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [signupSuccess, setSignupSuccess] = useState(false);
 
@@ -21,6 +22,7 @@ export function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setInfo(null);
 
     const supabase = createClient();
 
@@ -54,6 +56,33 @@ export function LoginForm() {
       setSignupSuccess(true);
       setIsLoading(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(null);
+    setInfo(null);
+
+    if (!email) {
+      setError("Enter your email first to receive a reset link.");
+      return;
+    }
+
+    setIsLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo:
+        process.env.NEXT_PUBLIC_PASSWORD_RESET_REDIRECT_URL ||
+        `${window.location.origin}/reset-password`,
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setInfo("We sent you a password reset link. Check your inbox.");
   };
 
   if (signupSuccess) {
@@ -121,6 +150,11 @@ export function LoginForm() {
               {error}
             </div>
           )}
+          {info && (
+            <div className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+              {info}
+            </div>
+          )}
           <div className="space-y-2">
             <label
               htmlFor="email"
@@ -167,6 +201,17 @@ export function LoginForm() {
                 ? "Login"
                 : "Sign up"}
           </Button>
+          {mode === "login" && (
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto w-full p-0 text-sm"
+              disabled={isLoading}
+              onClick={handleForgotPassword}
+            >
+              Forgot your password?
+            </Button>
+          )}
           <p className="text-center text-sm text-muted-foreground">
             {mode === "login" ? (
               <>
@@ -177,6 +222,7 @@ export function LoginForm() {
                   onClick={() => {
                     setMode("signup");
                     setError(null);
+                    setInfo(null);
                   }}
                 >
                   Sign up
@@ -191,6 +237,7 @@ export function LoginForm() {
                   onClick={() => {
                     setMode("login");
                     setError(null);
+                    setInfo(null);
                   }}
                 >
                   Log in

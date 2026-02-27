@@ -112,7 +112,35 @@ const statusConfig: Record<
   },
 };
 
+const disciplineConfig: Record<Discipline, { className: string }> = {
+  "week-1": {
+    className: "bg-teal-100 text-teal-700 border-teal-200",
+  },
+  "week-2": {
+    className: "bg-blue-100 text-blue-700 border-blue-200",
+  },
+  "week-3": {
+    className: "bg-violet-100 text-violet-700 border-violet-200",
+  },
+  "day-pass": {
+    className: "bg-slate-100 text-slate-700 border-slate-200",
+  },
+  "routine-monthly": {
+    className: "bg-green-100 text-green-700 border-green-200",
+  },
+  "simple-monthly": {
+    className: "bg-amber-100 text-amber-700 border-amber-200",
+  },
+  crossfit: {
+    className: "bg-rose-100 text-rose-700 border-rose-200",
+  },
+  "personal-trainer": {
+    className: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  },
+};
+
 export function MembersTable({ members }: MembersTableProps) {
+  const PAGE_SIZE = 20;
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [nameFilter, setNameFilter] = useState("");
@@ -120,9 +148,13 @@ export function MembersTable({ members }: MembersTableProps) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<MemberWithStatus | null>(
     null
   );
+  const [noteMember, setNoteMember] = useState<MemberWithStatus | null>(null);
+  const [phoneMember, setPhoneMember] = useState<MemberWithStatus | null>(null);
   const [editingMember, setEditingMember] = useState<MemberRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [renewingMemberId, setRenewingMemberId] = useState<string | null>(null);
@@ -132,6 +164,7 @@ export function MembersTable({ members }: MembersTableProps) {
   const [openingWhatsAppId, setOpeningWhatsAppId] = useState<string | null>(null);
   const [signedPhotoUrls, setSignedPhotoUrls] = useState<Record<string, string>>({});
   const [isHydrated, setIsHydrated] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -199,6 +232,14 @@ export function MembersTable({ members }: MembersTableProps) {
     return nameMatch && disciplineMatch && statusMatch;
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [nameFilter, disciplineFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE));
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const paginatedMembers = filteredMembers.slice(pageStart, pageStart + PAGE_SIZE);
+
   const handleEdit = (member: MemberWithStatus) => {
     setEditingMember(member);
     setFormOpen(true);
@@ -235,8 +276,13 @@ export function MembersTable({ members }: MembersTableProps) {
       setFormOpen(false);
       router.refresh();
     } catch (err) {
-      console.error("Failed to save member:", err);
-      toast.error("No se pudo guardar el miembro");
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("DUPLICATE_MEMBER_FIRST_NAME_LAST_NAME")) {
+        toast.error("Ya existe un miembro con el mismo nombre y primer apellido");
+      } else {
+        console.error("Failed to save member:", err);
+        toast.error("No se pudo guardar el miembro");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -328,6 +374,18 @@ export function MembersTable({ members }: MembersTableProps) {
     setPhotoOpen(true);
   };
 
+  const handleOpenNote = (member: MemberWithStatus) => {
+    if (!member.description?.trim()) return;
+    setNoteMember(member);
+    setNoteOpen(true);
+  };
+
+  const handleOpenPhone = (member: MemberWithStatus) => {
+    if (!member.phone?.trim()) return;
+    setPhoneMember(member);
+    setPhoneOpen(true);
+  };
+
   const resolvePhotoUrl = (photoValue: string) => {
     if (!photoValue) return "";
     if (/^https?:\/\//i.test(photoValue)) return photoValue;
@@ -376,7 +434,13 @@ export function MembersTable({ members }: MembersTableProps) {
       </div>
       <Card>
         <CardHeader className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8 lg:py-6">
-          <CardTitle className="text-xl lg:text-2xl">Members</CardTitle>
+          <div className="space-y-1">
+            <CardTitle className="text-xl lg:text-2xl">Members</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Mostrando {filteredMembers.length === 0 ? 0 : pageStart + 1}-
+              {Math.min(pageStart + PAGE_SIZE, filteredMembers.length)} de {filteredMembers.length}
+            </p>
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:gap-3">
             <Input
               value={nameFilter}
@@ -459,7 +523,7 @@ export function MembersTable({ members }: MembersTableProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMembers.map((member) => {
+                paginatedMembers.map((member) => {
                   const config = statusConfig[member.status];
                   return (
                     <TableRow key={member.id} className={`${config.rowClassName} transition-all duration-200`}>
@@ -481,11 +545,21 @@ export function MembersTable({ members }: MembersTableProps) {
                               </AvatarFallback>
                             </Avatar>
                           </button>
-                          <span>{member.name}</span>
+                          <span
+                            className="block max-w-[180px] truncate sm:max-w-[230px] lg:max-w-[280px]"
+                            title={member.name}
+                          >
+                            {member.name}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
-                        {disciplineLabels[member.discipline]}
+                        <Badge
+                          variant="outline"
+                          className={`${disciplineConfig[member.discipline].className} lg:px-3 lg:py-1 lg:text-sm`}
+                        >
+                          {disciplineLabels[member.discipline]}
+                        </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {formatCurrency(member.monthly_fee, member.currency)}
@@ -530,10 +604,34 @@ export function MembersTable({ members }: MembersTableProps) {
                           : "\u2014"}
                       </TableCell>
                       <TableCell className="hidden xl:table-cell">
-                        {member.phone}
+                        {member.phone?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => handleOpenPhone(member)}
+                          >
+                            Ver telefono
+                          </Button>
+                        ) : (
+                          "\u2014"
+                        )}
                       </TableCell>
-                      <TableCell className="hidden max-w-[200px] truncate 2xl:table-cell">
-                        {member.description || "\u2014"}
+                      <TableCell className="hidden 2xl:table-cell">
+                        {member.description?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => handleOpenNote(member)}
+                          >
+                            Ver nota
+                          </Button>
+                        ) : (
+                          "\u2014"
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1 lg:gap-2">
@@ -612,6 +710,33 @@ export function MembersTable({ members }: MembersTableProps) {
               )}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between border-t border-border/60 px-4 py-3 sm:px-6">
+            <p className="text-sm text-muted-foreground">
+              Página {currentPage} de {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                }
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
       <MemberForm
@@ -659,6 +784,63 @@ export function MembersTable({ members }: MembersTableProps) {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={noteOpen}
+        onOpenChange={(open) => {
+          setNoteOpen(open);
+          if (!open) setNoteMember(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Nota {noteMember ? `de ${noteMember.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">
+            {noteMember?.description || "Sin nota"}
+          </p>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={phoneOpen}
+        onOpenChange={(open) => {
+          setPhoneOpen(open);
+          if (!open) setPhoneMember(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Telefono{" "}
+              {phoneMember ? (
+                <span className="font-semibold text-primary">{phoneMember.name}</span>
+              ) : (
+                ""
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed">{phoneMember?.phone || "Sin telefono"}</p>
+            {phoneMember?.phone?.trim() ? (
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <a
+                    href={`https://wa.me/${formatPhoneForWhatsApp(phoneMember.phone)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Abrir WhatsApp
+                  </a>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`tel:${phoneMember.phone.replace(/\s+/g, "")}`}>Llamar</a>
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
       <AlertDialog

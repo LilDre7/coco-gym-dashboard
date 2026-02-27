@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidateTag } from "next/cache";
 import { MemberRow, Discipline, Currency } from "./types";
+import { formatPersonName, getFirstNameAndSurnameKey } from "./member-utils";
 
 function isMissingMembersPhotoUrlColumnError(message: string): boolean {
   const normalized = message.toLowerCase();
@@ -17,6 +18,33 @@ function isMissingMembersPhotoUrlColumnError(message: string): boolean {
 function isStoragePath(value: string | null | undefined): boolean {
   if (!value) return false;
   return !/^https?:\/\//i.test(value);
+}
+
+async function assertUniqueByFirstNameAndSurname(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+  candidateName: string;
+  excludeMemberId?: string;
+}) {
+  const { supabase, userId, candidateName, excludeMemberId } = params;
+  const candidateKey = getFirstNameAndSurnameKey(candidateName);
+  if (!candidateKey) return;
+
+  const { data, error } = await supabase
+    .from("members")
+    .select("id, name")
+    .eq("user_id", userId);
+
+  if (error) throw new Error(error.message);
+
+  const duplicate = (data ?? []).find((member) => {
+    if (excludeMemberId && member.id === excludeMemberId) return false;
+    return getFirstNameAndSurnameKey(member.name) === candidateKey;
+  });
+
+  if (duplicate) {
+    throw new Error("DUPLICATE_MEMBER_FIRST_NAME_LAST_NAME");
+  }
 }
 
 export async function getMembers(): Promise<MemberRow[]> {
@@ -52,8 +80,16 @@ export async function addMember(formData: {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  const normalizedName = formatPersonName(formData.name);
+  await assertUniqueByFirstNameAndSurname({
+    supabase,
+    userId: user.id,
+    candidateName: normalizedName,
+  });
+
   const payload = {
     ...formData,
+    name: normalizedName,
     user_id: user.id,
   };
 
@@ -86,9 +122,20 @@ export async function updateMember(
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  const normalizedName = formatPersonName(formData.name);
+  await assertUniqueByFirstNameAndSurname({
+    supabase,
+    userId: user.id,
+    candidateName: normalizedName,
+    excludeMemberId: id,
+  });
+
   let { error } = await supabase
     .from("members")
-    .update(formData)
+    .update({
+      ...formData,
+      name: normalizedName,
+    })
     .eq("id", id)
     .eq("user_id", user.id);
 

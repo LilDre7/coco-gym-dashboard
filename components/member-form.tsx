@@ -28,6 +28,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { Camera, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { formatPersonName } from "@/lib/member-utils";
 
 interface MemberFormProps {
   open: boolean;
@@ -74,7 +75,7 @@ export function MemberForm({
 
   useEffect(() => {
     if (member) {
-      setName(member.name);
+      setName(formatPersonName(member.name));
       setPhotoUrl(member.photo_url || "");
       setDiscipline(member.discipline);
       setCurrency(member.currency || "CRC");
@@ -242,9 +243,11 @@ export function MemberForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedName = formatPersonName(name);
+    setName(normalizedName);
     onSave(
       {
-        name,
+        name: normalizedName,
         photo_url: photoUrl,
         discipline,
         monthly_fee: monthlyFee,
@@ -275,6 +278,7 @@ export function MemberForm({
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={(e) => setName(formatPersonName(e.target.value))}
               placeholder="Member name"
               required
             />

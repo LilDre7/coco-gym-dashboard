@@ -1,5 +1,29 @@
 import { MemberRow, MemberWithStatus, MemberStatus, Currency } from "./types";
 
+export function formatPersonName(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/(^|[\s'-])([a-záéíóúüñ])/g, (match) => match.toUpperCase());
+}
+
+function normalizeForNameCompare(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+export function getFirstNameAndSurnameKey(value: string): string {
+  const normalized = normalizeForNameCompare(value);
+  if (!normalized) return "";
+  const parts = normalized.split(" ").filter(Boolean);
+  return parts.slice(0, 2).join(" ");
+}
+
 export function calculateDaysRemaining(endDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
