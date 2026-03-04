@@ -12,6 +12,25 @@ export type MemberStatus = "active" | "expiring" | "expired" | "inactive";
 
 export type Currency = "USD" | "CRC";
 
+export interface StoreProductRow {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  price: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const STORE_PRODUCT_CATEGORIES = [
+  "Suplementos",
+  "Otros",
+  "Membresias",
+  "Bebidas",
+] as const;
+
+export type StoreProductCategory = (typeof STORE_PRODUCT_CATEGORIES)[number];
+
 // Matches the Supabase DB schema (snake_case)
 export interface MemberRow {
   id: string;

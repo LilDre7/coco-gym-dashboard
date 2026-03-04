@@ -4,10 +4,18 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
+import { cn } from '@/lib/utils'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+})
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+})
 
 export const metadata: Metadata = {
   title: 'Coco Gym Fitness - Playas del Coco',
@@ -26,8 +34,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans antialiased`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn(geist.variable, geistMono.variable)}
+    >
+      <body className={cn(geist.className, "font-sans antialiased")}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

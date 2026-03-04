@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -53,6 +54,7 @@ import {
   disciplineLabels,
 } from "@/lib/types";
 import {
+  EXPIRING_THRESHOLD_DAYS,
   formatCurrency,
   formatDate,
   formatPhoneForWhatsApp,
@@ -81,6 +83,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { fireSuccessConfetti } from "@/lib/confetti";
 
 interface MembersTableProps {
   members: MemberWithStatus[];
@@ -151,7 +154,7 @@ export function MembersTable({ members }: MembersTableProps) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<MemberWithStatus | null>(
-    null
+    null,
   );
   const [noteMember, setNoteMember] = useState<MemberWithStatus | null>(null);
   const [phoneMember, setPhoneMember] = useState<MemberWithStatus | null>(null);
@@ -159,10 +162,17 @@ export function MembersTable({ members }: MembersTableProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [renewingMemberId, setRenewingMemberId] = useState<string | null>(null);
   const [togglingMemberId, setTogglingMemberId] = useState<string | null>(null);
-  const [hardDeletingMemberId, setHardDeletingMemberId] = useState<string | null>(null);
-  const [memberToToggleActive, setMemberToToggleActive] = useState<MemberWithStatus | null>(null);
-  const [openingWhatsAppId, setOpeningWhatsAppId] = useState<string | null>(null);
-  const [signedPhotoUrls, setSignedPhotoUrls] = useState<Record<string, string>>({});
+  const [hardDeletingMemberId, setHardDeletingMemberId] = useState<
+    string | null
+  >(null);
+  const [memberToToggleActive, setMemberToToggleActive] =
+    useState<MemberWithStatus | null>(null);
+  const [openingWhatsAppId, setOpeningWhatsAppId] = useState<string | null>(
+    null,
+  );
+  const [signedPhotoUrls, setSignedPhotoUrls] = useState<
+    Record<string, string>
+  >({});
   const [isHydrated, setIsHydrated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -177,8 +187,8 @@ export function MembersTable({ members }: MembersTableProps) {
         new Set(
           members
             .map((member) => member.photo_url)
-            .filter((value) => value && !/^https?:\/\//i.test(value))
-        )
+            .filter((value) => value && !/^https?:\/\//i.test(value)),
+        ),
       );
 
       if (storagePaths.length === 0) {
@@ -215,7 +225,9 @@ export function MembersTable({ members }: MembersTableProps) {
     total: members.length,
     active: members.filter((member) => member.status === "active").length,
     expiring: members.filter(
-      (member) => member.days_remaining >= 0 && member.days_remaining <= 7
+      (member) =>
+        member.days_remaining >= 0 &&
+        member.days_remaining <= EXPIRING_THRESHOLD_DAYS,
     ).length,
     expired: members.filter((member) => member.status === "expired").length,
   };
@@ -238,7 +250,10 @@ export function MembersTable({ members }: MembersTableProps) {
 
   const totalPages = Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE));
   const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const paginatedMembers = filteredMembers.slice(pageStart, pageStart + PAGE_SIZE);
+  const paginatedMembers = filteredMembers.slice(
+    pageStart,
+    pageStart + PAGE_SIZE,
+  );
 
   const handleEdit = (member: MemberWithStatus) => {
     setEditingMember(member);
@@ -262,15 +277,17 @@ export function MembersTable({ members }: MembersTableProps) {
       phone: string;
       description: string;
     },
-    id?: string
+    id?: string,
   ) => {
     setIsSaving(true);
     try {
       if (id) {
         await updateMember(id, data);
+        fireSuccessConfetti();
         toast.success("Membresía actualizada");
       } else {
         await addMember(data);
+        fireSuccessConfetti();
         toast.success("Miembro agregado");
       }
       setFormOpen(false);
@@ -278,7 +295,9 @@ export function MembersTable({ members }: MembersTableProps) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       if (message.includes("DUPLICATE_MEMBER_FIRST_NAME_LAST_NAME")) {
-        toast.error("Ya existe un miembro con el mismo nombre y primer apellido");
+        toast.error(
+          "Ya existe un miembro con el mismo nombre y primer apellido",
+        );
       } else {
         console.error("Failed to save member:", err);
         toast.error("No se pudo guardar el miembro");
@@ -295,7 +314,7 @@ export function MembersTable({ members }: MembersTableProps) {
     try {
       await setMemberActiveStatus(memberToToggleActive.id, willBeActive);
       toast.success(
-        willBeActive ? "Member marked as active" : "Member marked as inactive"
+        willBeActive ? "Member marked as active" : "Member marked as inactive",
       );
       setMemberToToggleActive(null);
       router.refresh();
@@ -327,6 +346,7 @@ export function MembersTable({ members }: MembersTableProps) {
     setRenewingMemberId(id);
     try {
       await renewMember(id);
+      fireSuccessConfetti();
       toast.success("Membresía renovada (fecha fija mensual)");
       router.refresh();
     } catch (err) {
@@ -348,16 +368,19 @@ export function MembersTable({ members }: MembersTableProps) {
     const encodedMessage = encodeURIComponent(prefilledMessage);
 
     setOpeningWhatsAppId(member.id);
-    window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, "_blank");
+    window.open(
+      `https://wa.me/${formattedPhone}?text=${encodedMessage}`,
+      "_blank",
+    );
     toast("Abriendo WhatsApp", {
       description: `${member.name} · vence ${expirationDate}`,
     });
     setTimeout(
       () =>
         setOpeningWhatsAppId((current) =>
-          current === member.id ? null : current
+          current === member.id ? null : current,
         ),
-      400
+      400,
     );
   };
 
@@ -397,7 +420,9 @@ export function MembersTable({ members }: MembersTableProps) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total Members</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              Total Members
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between pt-0">
             <p className="text-2xl font-semibold">{totals.total}</p>
@@ -406,28 +431,40 @@ export function MembersTable({ members }: MembersTableProps) {
         </Card>
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              Active
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between pt-0">
-            <p className="text-2xl font-semibold text-emerald-700">{totals.active}</p>
+            <p className="text-2xl font-semibold text-emerald-700">
+              {totals.active}
+            </p>
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
           </CardContent>
         </Card>
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Expiring (7d)</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              Expiring ({EXPIRING_THRESHOLD_DAYS}d)
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between pt-0">
-            <p className="text-2xl font-semibold text-amber-700">{totals.expiring}</p>
+            <p className="text-2xl font-semibold text-amber-700">
+              {totals.expiring}
+            </p>
             <Clock3 className="h-5 w-5 text-amber-600" />
           </CardContent>
         </Card>
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Expired</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              Expired
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between pt-0">
-            <p className="text-2xl font-semibold text-red-700">{totals.expired}</p>
+            <p className="text-2xl font-semibold text-red-700">
+              {totals.expired}
+            </p>
             <OctagonAlert className="h-5 w-5 text-red-600" />
           </CardContent>
         </Card>
@@ -438,7 +475,8 @@ export function MembersTable({ members }: MembersTableProps) {
             <CardTitle className="text-xl lg:text-2xl">Members</CardTitle>
             <p className="text-sm text-muted-foreground">
               Mostrando {filteredMembers.length === 0 ? 0 : pageStart + 1}-
-              {Math.min(pageStart + PAGE_SIZE, filteredMembers.length)} de {filteredMembers.length}
+              {Math.min(pageStart + PAGE_SIZE, filteredMembers.length)} de{" "}
+              {filteredMembers.length}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:gap-3">
@@ -486,7 +524,10 @@ export function MembersTable({ members }: MembersTableProps) {
             ) : (
               <div className="h-10 w-full rounded-md border border-input bg-background sm:w-[150px] lg:h-11" />
             )}
-            <Button onClick={handleAdd} className="w-full sm:w-auto lg:h-11 lg:px-5 lg:text-base">
+            <Button
+              onClick={handleAdd}
+              className="w-full sm:w-auto lg:h-11 lg:px-5 lg:text-base"
+            >
               <Plus className="h-4 w-4" />
               Add Member
             </Button>
@@ -506,7 +547,9 @@ export function MembersTable({ members }: MembersTableProps) {
                 <TableHead className="hidden lg:table-cell">Expires</TableHead>
                 <TableHead>Days Left</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden lg:table-cell">Time in Gym</TableHead>
+                <TableHead className="hidden lg:table-cell">
+                  Time in Gym
+                </TableHead>
                 <TableHead className="hidden xl:table-cell">Phone</TableHead>
                 <TableHead className="hidden 2xl:table-cell">Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -526,7 +569,10 @@ export function MembersTable({ members }: MembersTableProps) {
                 paginatedMembers.map((member) => {
                   const config = statusConfig[member.status];
                   return (
-                    <TableRow key={member.id} className={`${config.rowClassName} transition-all duration-200`}>
+                    <TableRow
+                      key={member.id}
+                      className={`${config.rowClassName} transition-all duration-200`}
+                    >
                       <TableCell className="font-medium lg:text-[1.05rem]">
                         <div className="flex items-center gap-3">
                           <button
@@ -537,7 +583,9 @@ export function MembersTable({ members }: MembersTableProps) {
                           >
                             <Avatar className="size-8 lg:size-10">
                               <AvatarImage
-                                src={resolvePhotoUrl(member.photo_url) || undefined}
+                                src={
+                                  resolvePhotoUrl(member.photo_url) || undefined
+                                }
                                 alt={member.name}
                               />
                               <AvatarFallback className="text-xs font-semibold lg:text-sm">
@@ -572,7 +620,7 @@ export function MembersTable({ members }: MembersTableProps) {
                           className={
                             member.days_remaining < 0
                               ? "font-medium text-destructive"
-                              : member.days_remaining <= 7
+                              : member.days_remaining <= EXPIRING_THRESHOLD_DAYS
                                 ? "font-medium text-amber-600"
                                 : "text-foreground"
                           }
@@ -646,11 +694,13 @@ export function MembersTable({ members }: MembersTableProps) {
                               disabled={renewingMemberId === member.id}
                               title="Renew membership (fixed monthly date)"
                             >
-                              {renewingMemberId === member.id
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : member.status === "inactive"
-                                  ? "Reactivar"
-                                  : "Renovar"}
+                              {renewingMemberId === member.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : member.status === "inactive" ? (
+                                "Reactivar"
+                              ) : (
+                                "Renovar"
+                              )}
                             </Button>
                           )}
                           <Button
@@ -679,12 +729,16 @@ export function MembersTable({ members }: MembersTableProps) {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-44">
-                                <DropdownMenuItem onClick={() => handleEdit(member)}>
+                                <DropdownMenuItem
+                                  onClick={() => handleEdit(member)}
+                                >
                                   <Pencil className="h-4 w-4" />
                                   Edit member
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => setMemberToToggleActive(member)}
+                                  onClick={() =>
+                                    setMemberToToggleActive(member)
+                                  }
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                   Manage status
@@ -750,6 +804,7 @@ export function MembersTable({ members }: MembersTableProps) {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{selectedMember?.name}</DialogTitle>
+            <DialogDescription>Member profile photo preview.</DialogDescription>
           </DialogHeader>
           {selectedMember && (
             <div className="space-y-3 pb-2">
@@ -816,16 +871,20 @@ export function MembersTable({ members }: MembersTableProps) {
             <DialogTitle>
               Telefono{" "}
               {phoneMember ? (
-                <span className="font-semibold text-primary">{phoneMember.name}</span>
+                <span className="font-semibold text-primary">
+                  {phoneMember.name}
+                </span>
               ) : (
                 ""
               )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm leading-relaxed">{phoneMember?.phone || "Sin telefono"}</p>
             {phoneMember?.phone?.trim() ? (
               <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <p>{phoneMember?.phone || "Sin telefono"}</p>
+                </Button>
                 <Button asChild variant="outline" size="sm">
                   <a
                     href={`https://wa.me/${formatPhoneForWhatsApp(phoneMember.phone)}`}
@@ -836,7 +895,9 @@ export function MembersTable({ members }: MembersTableProps) {
                   </a>
                 </Button>
                 <Button asChild variant="outline" size="sm">
-                  <a href={`tel:${phoneMember.phone.replace(/\s+/g, "")}`}>Llamar</a>
+                  <a href={`tel:${phoneMember.phone.replace(/\s+/g, "")}`}>
+                    Llamar
+                  </a>
                 </Button>
               </div>
             ) : null}
@@ -865,7 +926,9 @@ export function MembersTable({ members }: MembersTableProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(togglingMemberId || hardDeletingMemberId)}>
+            <AlertDialogCancel
+              disabled={Boolean(togglingMemberId || hardDeletingMemberId)}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -878,8 +941,10 @@ export function MembersTable({ members }: MembersTableProps) {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Saving...
                 </span>
+              ) : memberToToggleActive?.status === "inactive" ? (
+                "Mark active"
               ) : (
-                memberToToggleActive?.status === "inactive" ? "Mark active" : "Mark inactive"
+                "Mark inactive"
               )}
             </AlertDialogAction>
             <AlertDialogAction

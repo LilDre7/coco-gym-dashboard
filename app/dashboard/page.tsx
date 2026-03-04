@@ -1,28 +1,50 @@
-import { getMembers } from "@/lib/actions";
+import { CheckInsDashboard } from "@/components/checkins-dashboard";
+import { getCheckIns, getMembers, getStoreProducts } from "@/lib/actions";
+import { formatLocalDateKey } from "@/lib/checkins";
 import { enrichMemberData } from "@/lib/member-utils";
-import { StatsCards } from "@/components/stats-cards";
-import { DisciplineChart } from "@/components/discipline-chart";
-import { RevenueCard } from "@/components/revenue-card";
+
+function getDefaultTime(value: Date) {
+  const hours = value.getHours().toString().padStart(2, "0");
+  const minutes = value.getMinutes().toString().padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
 
 export default async function DashboardPage() {
-  const members = await getMembers();
-  const enrichedMembers = members.map(enrichMemberData);
+  const now = new Date();
+  const initialDateKey = formatLocalDateKey(now);
+  const initialTime = getDefaultTime(now);
 
-  return (
-    <main className="w-full space-y-6 p-4 sm:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your gym membership stats
-        </p>
-      </div>
+  try {
+    const checkIns = await getCheckIns();
+    const storeProducts = await getStoreProducts();
+    const members = await getMembers();
+    const enrichedMembers = members.map(enrichMemberData);
 
-      <StatsCards members={enrichedMembers} />
+    return (
+      <CheckInsDashboard
+        initialCheckIns={checkIns}
+        initialProducts={storeProducts}
+        initialMembers={enrichedMembers}
+        initialDateKey={initialDateKey}
+        initialTime={initialTime}
+      />
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.toLowerCase().includes("check_ins")
+    ) {
+      return (
+        <CheckInsDashboard
+          initialCheckIns={[]}
+          initialProducts={[]}
+          initialMembers={[]}
+          initialDateKey={initialDateKey}
+          initialTime={initialTime}
+        />
+      );
+    }
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <DisciplineChart members={enrichedMembers} />
-        <RevenueCard members={enrichedMembers} />
-      </div>
-    </main>
-  );
+    throw error;
+  }
 }

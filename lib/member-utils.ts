@@ -1,5 +1,7 @@
 import { MemberRow, MemberWithStatus, MemberStatus, Currency } from "./types";
 
+export const EXPIRING_THRESHOLD_DAYS = 3;
+
 export function formatPersonName(value: string): string {
   return value
     .trim()
@@ -21,13 +23,29 @@ export function getFirstNameAndSurnameKey(value: string): string {
   const normalized = normalizeForNameCompare(value);
   if (!normalized) return "";
   const parts = normalized.split(" ").filter(Boolean);
-  return parts.slice(0, 2).join(" ");
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+function parseDateValue(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(value);
+
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+export function formatDateInputValue(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function calculateDaysRemaining(endDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const expDate = new Date(endDate);
+  const expDate = parseDateValue(endDate);
   expDate.setHours(0, 0, 0, 0);
   const diffTime = expDate.getTime() - today.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -36,7 +54,7 @@ export function calculateDaysRemaining(endDate: string): number {
 export function calculateTenureDays(startDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
+  const start = parseDateValue(startDate);
   start.setHours(0, 0, 0, 0);
   const diffTime = today.getTime() - start.getTime();
   return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
@@ -45,7 +63,7 @@ export function calculateTenureDays(startDate: string): number {
 export function getStatus(daysRemaining: number, isActive: boolean): MemberStatus {
   if (!isActive) return "inactive";
   if (daysRemaining < 0) return "expired";
-  if (daysRemaining <= 7) return "expiring";
+  if (daysRemaining <= EXPIRING_THRESHOLD_DAYS) return "expiring";
   return "active";
 }
 
@@ -89,7 +107,7 @@ export function formatCurrency(
 }
 
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
+  return parseDateValue(dateString).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

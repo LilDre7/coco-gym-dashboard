@@ -2,8 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidateTag } from "next/cache";
-import { MemberRow, Discipline, Currency } from "./types";
+import { MemberRow, Discipline, Currency, StoreProductRow } from "./types";
+import { CheckIn, CheckInInput, CheckInRow, mapCheckInRow } from "./checkins";
 import { formatPersonName, getFirstNameAndSurnameKey } from "./member-utils";
+
+const MISSING_CHECK_INS_TABLE_ERROR = "MISSING_CHECK_INS_TABLE";
+const MISSING_STORE_PRODUCTS_TABLE_ERROR = "MISSING_STORE_PRODUCTS_TABLE";
 
 function isMissingMembersPhotoUrlColumnError(message: string): boolean {
   const normalized = message.toLowerCase();
@@ -15,9 +19,152 @@ function isMissingMembersPhotoUrlColumnError(message: string): boolean {
   );
 }
 
+function isMissingMembersCurrencyColumnError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("could not find") &&
+    normalized.includes("'currency'") &&
+    normalized.includes("'members'") &&
+    normalized.includes("schema cache")
+  );
+}
+
+function normalizeMemberRow(row: Partial<MemberRow>): MemberRow {
+  return {
+    id: row.id ?? "",
+    user_id: row.user_id ?? "",
+    name: row.name ?? "",
+    photo_url: row.photo_url ?? "",
+    discipline: (row.discipline as Discipline | undefined) ?? "routine-monthly",
+    monthly_fee:
+      typeof row.monthly_fee === "number"
+        ? row.monthly_fee
+        : Number(row.monthly_fee ?? 0),
+    currency: (row.currency as Currency | undefined) ?? "CRC",
+    start_date: row.start_date ?? "",
+    end_date: row.end_date ?? "",
+    phone: row.phone ?? "",
+    description: row.description ?? "",
+    is_active: row.is_active ?? true,
+    created_at: row.created_at ?? "",
+  };
+}
+
+async function insertMemberWithLegacyFallback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: {
+    name: string;
+    photo_url: string;
+    discipline: Discipline;
+    monthly_fee: number;
+    currency: Currency;
+    start_date: string;
+    end_date: string;
+    phone: string;
+    description: string;
+    user_id: string;
+  }
+) {
+  let nextPayload: Record<string, unknown> = { ...payload };
+
+  while (true) {
+    const { error } = await supabase.from("members").insert(nextPayload);
+    if (!error) return;
+
+    if (isMissingMembersPhotoUrlColumnError(error.message) && "photo_url" in nextPayload) {
+      delete nextPayload.photo_url;
+      continue;
+    }
+
+    if (isMissingMembersCurrencyColumnError(error.message) && "currency" in nextPayload) {
+      delete nextPayload.currency;
+      continue;
+    }
+
+    throw new Error(error.message);
+  }
+}
+
+async function updateMemberWithLegacyFallback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  memberId: string,
+  payload: {
+    name: string;
+    photo_url: string;
+    discipline: Discipline;
+    monthly_fee: number;
+    currency: Currency;
+    start_date: string;
+    end_date: string;
+    phone: string;
+    description: string;
+  }
+) {
+  let nextPayload: Record<string, unknown> = { ...payload };
+
+  while (true) {
+    const { error } = await supabase
+      .from("members")
+      .update(nextPayload)
+      .eq("id", memberId)
+      .eq("user_id", userId);
+
+    if (!error) return;
+
+    if (isMissingMembersPhotoUrlColumnError(error.message) && "photo_url" in nextPayload) {
+      delete nextPayload.photo_url;
+      continue;
+    }
+
+    if (isMissingMembersCurrencyColumnError(error.message) && "currency" in nextPayload) {
+      delete nextPayload.currency;
+      continue;
+    }
+
+    throw new Error(error.message);
+  }
+}
+
 function isStoragePath(value: string | null | undefined): boolean {
   if (!value) return false;
   return !/^https?:\/\//i.test(value);
+}
+
+function isMissingCheckInsTableError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("check_ins") &&
+    (
+      normalized.includes("schema cache") ||
+      normalized.includes("could not find") ||
+      normalized.includes("does not exist") ||
+      normalized.includes("relation") ||
+      normalized.includes("undefined table")
+    )
+  );
+}
+
+function throwMissingCheckInsTableError() {
+  throw new Error(MISSING_CHECK_INS_TABLE_ERROR);
+}
+
+function isMissingStoreProductsTableError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("store_products") &&
+    (
+      normalized.includes("schema cache") ||
+      normalized.includes("could not find") ||
+      normalized.includes("does not exist") ||
+      normalized.includes("relation") ||
+      normalized.includes("undefined table")
+    )
+  );
+}
+
+function throwMissingStoreProductsTableError() {
+  throw new Error(MISSING_STORE_PRODUCTS_TABLE_ERROR);
 }
 
 async function assertUniqueByFirstNameAndSurname(params: {
@@ -30,15 +177,20 @@ async function assertUniqueByFirstNameAndSurname(params: {
   const candidateKey = getFirstNameAndSurnameKey(candidateName);
   if (!candidateKey) return;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("members")
     .select("id, name")
     .eq("user_id", userId);
 
+  if (excludeMemberId?.trim()) {
+    query = query.neq("id", excludeMemberId.trim());
+  }
+
+  const { data, error } = await query;
+
   if (error) throw new Error(error.message);
 
   const duplicate = (data ?? []).find((member) => {
-    if (excludeMemberId && member.id === excludeMemberId) return false;
     return getFirstNameAndSurnameKey(member.name) === candidateKey;
   });
 
@@ -60,7 +212,7 @@ export async function getMembers(): Promise<MemberRow[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return ((data ?? []) as Partial<MemberRow>[]).map(normalizeMemberRow);
 }
 
 export async function addMember(formData: {
@@ -93,12 +245,7 @@ export async function addMember(formData: {
     user_id: user.id,
   };
 
-  let { error } = await supabase.from("members").insert(payload);
-  if (error && isMissingMembersPhotoUrlColumnError(error.message)) {
-    const { photo_url: _photoUrl, ...fallbackPayload } = payload;
-    ({ error } = await supabase.from("members").insert(fallbackPayload));
-  }
-  if (error) throw new Error(error.message);
+  await insertMemberWithLegacyFallback(supabase, payload);
   revalidateTag("members", "max");
 }
 
@@ -123,32 +270,31 @@ export async function updateMember(
   if (!user) throw new Error("Not authenticated");
 
   const normalizedName = formatPersonName(formData.name);
-  await assertUniqueByFirstNameAndSurname({
-    supabase,
-    userId: user.id,
-    candidateName: normalizedName,
-    excludeMemberId: id,
-  });
-
-  let { error } = await supabase
+  const { data: existingMember, error: existingMemberError } = await supabase
     .from("members")
-    .update({
-      ...formData,
-      name: normalizedName,
-    })
+    .select("name")
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (error && isMissingMembersPhotoUrlColumnError(error.message)) {
-    const { photo_url: _photoUrl, ...fallbackPayload } = formData;
-    ({ error } = await supabase
-      .from("members")
-      .update(fallbackPayload)
-      .eq("id", id)
-      .eq("user_id", user.id));
+  if (existingMemberError) throw new Error(existingMemberError.message);
+
+  const existingNameKey = getFirstNameAndSurnameKey(existingMember?.name ?? "");
+  const normalizedNameKey = getFirstNameAndSurnameKey(normalizedName);
+
+  if (existingNameKey !== normalizedNameKey) {
+    await assertUniqueByFirstNameAndSurname({
+      supabase,
+      userId: user.id,
+      candidateName: normalizedName,
+      excludeMemberId: id,
+    });
   }
 
-  if (error) throw new Error(error.message);
+  await updateMemberWithLegacyFallback(supabase, user.id, id, {
+    ...formData,
+    name: normalizedName,
+  });
   revalidateTag("members", "max");
 }
 
@@ -226,6 +372,245 @@ export async function hardDeleteMember(id: string) {
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+}
+
+export async function getCheckIns() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("check_ins")
+    .select("*")
+    .order("occurred_at", { ascending: true });
+
+  if (error && isMissingCheckInsTableError(error.message)) {
+    return [];
+  }
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as CheckInRow[]).map(mapCheckInRow);
+}
+
+export async function addCheckIn(input: CheckInInput): Promise<CheckIn> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const occurredAt = new Date(`${input.date}T${input.time}:00`);
+  const { data, error } = await supabase
+    .from("check_ins")
+    .insert({
+      user_id: user.id,
+      name: input.name.trim(),
+      occurred_at: occurredAt.toISOString(),
+      has_purchase: input.hasPurchase,
+      product: input.hasPurchase ? input.product?.trim() ?? "" : "",
+      payment_method: input.hasPurchase ? input.paymentMethod ?? null : null,
+      amount: input.hasPurchase && typeof input.amount === "number" ? input.amount : null,
+      notes: input.notes?.trim() ?? "",
+    })
+    .select("*")
+    .single();
+
+  if (error && isMissingCheckInsTableError(error.message)) {
+    throwMissingCheckInsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("check-ins", "max");
+  return mapCheckInRow(data as CheckInRow);
+}
+
+export async function updateCheckIn(id: string, input: CheckInInput) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const occurredAt = new Date(`${input.date}T${input.time}:00`);
+  const { error } = await supabase
+    .from("check_ins")
+    .update({
+      name: input.name.trim(),
+      occurred_at: occurredAt.toISOString(),
+      has_purchase: input.hasPurchase,
+      product: input.hasPurchase ? input.product?.trim() ?? "" : "",
+      payment_method: input.hasPurchase ? input.paymentMethod ?? null : null,
+      amount: input.hasPurchase && typeof input.amount === "number" ? input.amount : null,
+      notes: input.notes?.trim() ?? "",
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error && isMissingCheckInsTableError(error.message)) {
+    throwMissingCheckInsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("check-ins", "max");
+}
+
+export async function deleteCheckIn(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("check_ins")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error && isMissingCheckInsTableError(error.message)) {
+    throwMissingCheckInsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("check-ins", "max");
+}
+
+export async function getStoreProducts() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("store_products")
+    .select("*")
+    .order("is_active", { ascending: false })
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error && isMissingStoreProductsTableError(error.message)) {
+    return [];
+  }
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as (Omit<StoreProductRow, "price"> & { price: number | string })[]).map(
+    (product) => ({
+      ...product,
+      price:
+        typeof product.price === "number"
+          ? product.price
+          : Number(product.price),
+    })
+  );
+}
+
+export async function addStoreProduct(formData: {
+  name: string;
+  category: string;
+  price: number;
+}): Promise<StoreProductRow> {
+  const normalizedName = formData.name.trim().replace(/\s+/g, "-").toUpperCase();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("store_products")
+    .insert({
+      user_id: user.id,
+      name: normalizedName,
+      category: formData.category.trim(),
+      price: formData.price,
+    })
+    .select("*")
+    .single();
+
+  if (error && isMissingStoreProductsTableError(error.message)) {
+    throwMissingStoreProductsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("store-products", "max");
+  const createdProduct = data as Omit<StoreProductRow, "price"> & { price: number | string };
+  return {
+    ...createdProduct,
+    price:
+      typeof createdProduct.price === "number"
+        ? createdProduct.price
+        : Number(createdProduct.price),
+  };
+}
+
+export async function updateStoreProduct(
+  id: string,
+  formData: {
+    name: string;
+    category: string;
+    price: number;
+  }
+) {
+  const normalizedName = formData.name.trim().replace(/\s+/g, "-").toUpperCase();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("store_products")
+    .update({
+      name: normalizedName,
+      category: formData.category.trim(),
+      price: formData.price,
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error && isMissingStoreProductsTableError(error.message)) {
+    throwMissingStoreProductsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("store-products", "max");
+}
+
+export async function setStoreProductActiveStatus(id: string, isActive: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("store_products")
+    .update({ is_active: isActive })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error && isMissingStoreProductsTableError(error.message)) {
+    throwMissingStoreProductsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("store-products", "max");
+}
+
+export async function hardDeleteStoreProduct(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("store_products")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error && isMissingStoreProductsTableError(error.message)) {
+    throwMissingStoreProductsTableError();
+  }
+  if (error) throw new Error(error.message);
+  revalidateTag("store-products", "max");
 }
 
 function toIsoDate(value: Date): string {

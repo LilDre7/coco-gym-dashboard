@@ -16,18 +16,20 @@ import {
 } from "@/components/ui/dialog";
 import {
   LogOut,
-  LayoutDashboard,
   Users,
   BarChart3,
+  ShoppingBag,
   ChevronsLeft,
   ChevronsRight,
   KeyRound,
+  UserRoundSearchIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Check-ins", icon: UserRoundSearchIcon },
+  { href: "/dashboard/store", label: "Tienda", icon: ShoppingBag },
   { href: "/dashboard/members", label: "Members", icon: Users },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
 ];

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -28,7 +29,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { Camera, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { formatPersonName } from "@/lib/member-utils";
+import { formatDateInputValue, formatPersonName } from "@/lib/member-utils";
 
 interface MemberFormProps {
   open: boolean;
@@ -90,7 +91,7 @@ export function MemberForm({
       setDiscipline("routine-monthly");
       setCurrency("CRC");
       setMonthlyFee(disciplineFeesCRC["routine-monthly"]);
-      setStartDate(new Date().toISOString().split("T")[0]);
+      setStartDate(formatDateInputValue(new Date()));
       setEndDate("");
       setPhone("");
       setDescription("");
@@ -268,6 +269,11 @@ export function MemberForm({
           <DialogTitle>
             {member ? "Edit Member" : "Add New Member"}
           </DialogTitle>
+          <DialogDescription>
+            {member
+              ? "Update member profile, pricing, dates, and contact details."
+              : "Create a new member profile with membership and contact details."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

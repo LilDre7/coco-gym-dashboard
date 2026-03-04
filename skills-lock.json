@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "best-practices": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "github",
+      "computedHash": "f5d58f0adf9cc9646b35daf2241377e1ad7b8ab094e54c9792a826af1e0dca5b"
+    },
+    "performance": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "github",
+      "computedHash": "9e0e29b7919bacfd2d0caae0f841fa53ae3d7b7427d27f4fdbacc76643d7d138"
+    },
+    "web-quality-audit": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "github",
+      "computedHash": "04aeec0ff9071fc9cfb5b848a25946f8ca8586c842e50da4c1abbba8ceeaec40"
+    }
+  }
+}
