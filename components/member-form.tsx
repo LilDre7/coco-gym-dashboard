@@ -59,6 +59,7 @@ export function MemberForm({
   onSave,
   isSaving,
 }: MemberFormProps) {
+  const totalSteps = 2;
   const [name, setName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [discipline, setDiscipline] = useState<Discipline>("routine-monthly");
@@ -72,9 +73,11 @@ export function MemberForm({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [isRateLoading, setIsRateLoading] = useState(false);
+  const [step, setStep] = useState(1);
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
+    setStep(1);
     if (member) {
       setName(formatPersonName(member.name));
       setPhotoUrl(member.photo_url || "");
@@ -262,6 +265,23 @@ export function MemberForm({
     );
   };
 
+  const handleNextStep = () => {
+    const normalizedName = formatPersonName(name);
+    setName(normalizedName);
+
+    if (!normalizedName.trim()) {
+      toast.error("El nombre es obligatorio");
+      return;
+    }
+
+    if (!phone.trim()) {
+      toast.error("El telefono es obligatorio");
+      return;
+    }
+
+    setStep(2);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -270,214 +290,233 @@ export function MemberForm({
             {member ? "Edit Member" : "Add New Member"}
           </DialogTitle>
           <DialogDescription>
-            {member
-              ? "Update member profile, pricing, dates, and contact details."
-              : "Create a new member profile with membership and contact details."}
+            Paso {step} de {totalSteps} - {step === 1 ? "Perfil" : "Membresia"}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">
-              Name
-            </label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={(e) => setName(formatPersonName(e.target.value))}
-              placeholder="Member name"
-              required
-            />
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${totalSteps}, 1fr)` }}>
+            {Array.from({ length: totalSteps }, (_, index) => {
+              const current = index + 1;
+              return (
+                <div
+                  key={current}
+                  className={`h-2 rounded-full transition-colors ${current <= step ? "bg-primary" : "bg-muted"}`}
+                />
+              );
+            })}
           </div>
-          <div className="space-y-2">
-            <label htmlFor="photoUpload" className="text-sm font-medium">
-              Foto del cliente
-            </label>
-            <div className="rounded-lg border border-dashed p-3">
-              <div className="flex items-center gap-3">
-                <Avatar className="size-16">
-                  <AvatarImage
-                    src={photoPreviewUrl || undefined}
-                    alt={name || "Client"}
+
+          {step === 1 && (
+            <>
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium">
+                  Name
+                </label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={(e) => setName(formatPersonName(e.target.value))}
+                  placeholder="Member name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="photoUpload" className="text-sm font-medium">
+                  Foto del cliente
+                </label>
+                <div className="rounded-lg border border-dashed p-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-16">
+                      <AvatarImage
+                        src={photoPreviewUrl || undefined}
+                        alt={name || "Client"}
+                      />
+                      <AvatarFallback className="text-xs">
+                        {name
+                          .trim()
+                          .split(/\s+/)
+                          .slice(0, 2)
+                          .map((part) => part[0]?.toUpperCase() ?? "")
+                          .join("") || "N/A"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>Toma la foto desde el celular del gym y subela al momento.</p>
+                      <p>La imagen se guarda privada en Supabase Storage.</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isUploadingPhoto}
+                      onClick={() =>
+                        document.getElementById("photoUploadCamera")?.click()
+                      }
+                    >
+                      {isUploadingPhoto ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Camera className="h-4 w-4" />
+                      )}
+                      Tomar foto
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isUploadingPhoto}
+                      onClick={() =>
+                        document.getElementById("photoUploadFile")?.click()
+                      }
+                    >
+                      {isUploadingPhoto ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4" />
+                      )}
+                      Subir archivo
+                    </Button>
+                  </div>
+                  <Input
+                    id="photoUploadCamera"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePhotoFileChange}
                   />
-                  <AvatarFallback className="text-xs">
-                    {name
-                      .trim()
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((part) => part[0]?.toUpperCase() ?? "")
-                      .join("") || "N/A"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>Toma la foto desde el celular del gym y subela al momento.</p>
-                  <p>La imagen se guarda privada en Supabase Storage.</p>
+                  <Input
+                    id="photoUploadFile"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoFileChange}
+                  />
+                  {photoUrl && (
+                    <p className="mt-2 break-all text-xs text-muted-foreground">
+                      Storage path: {photoUrl}
+                    </p>
+                  )}
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isUploadingPhoto}
-                  onClick={() =>
-                    document.getElementById("photoUploadCamera")?.click()
-                  }
-                >
-                  {isUploadingPhoto ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Camera className="h-4 w-4" />
-                  )}
-                  Tomar foto
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isUploadingPhoto}
-                  onClick={() =>
-                    document.getElementById("photoUploadFile")?.click()
-                  }
-                >
-                  {isUploadingPhoto ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  Subir archivo
-                </Button>
+              <div className="space-y-2">
+                <label htmlFor="phone" className="text-sm font-medium">
+                  Phone
+                </label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+506 8888 8888"
+                  required
+                />
               </div>
-              <Input
-                id="photoUploadCamera"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handlePhotoFileChange}
-              />
-              <Input
-                id="photoUploadFile"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoFileChange}
-              />
-              {photoUrl && (
-                <p className="mt-2 break-all text-xs text-muted-foreground">
-                  Storage path: {photoUrl}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="discipline" className="text-sm font-medium">
-                Discipline
-              </label>
-              <Select
-                value={discipline}
-                onValueChange={handleDisciplineChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(
-                    Object.entries(disciplineLabels) as [Discipline, string][]
-                  ).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="currency" className="text-sm font-medium">
-                Currency
-              </label>
-              <Select value={currency} onValueChange={handleCurrencyChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">$ USD</SelectItem>
-                  <SelectItem value="CRC">{"\u20A1 CRC (Colones)"}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="monthlyFee" className="text-sm font-medium">
-              Monthly Fee ({currency === "CRC" ? "\u20A1" : "$"})
-            </label>
-            <Input
-              id="monthlyFee"
-              type="number"
-              value={monthlyFee}
-              onChange={(e) => setMonthlyFee(Number(e.target.value))}
-              min={0}
-              required
-            />
-            {currency === "USD" && (
-              <p className="text-xs text-muted-foreground">
-                {isRateLoading
-                  ? "Cargando tipo de cambio..."
-                  : exchangeRate
-                    ? `Tasa usada: 1 USD = ${exchangeRate.toFixed(2)} CRC`
-                    : "No se pudo cargar la tasa. Puedes escribir el precio manualmente."}
-              </p>
-            )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="startDate" className="text-sm font-medium">
-                Start Date
-              </label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="endDate" className="text-sm font-medium">
-                End Date
-              </label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="phone" className="text-sm font-medium">
-              Phone
-            </label>
-            <Input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+506 8888 8888"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium">
-              Notes
-            </label>
-            <Input
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Additional notes..."
-            />
-          </div>
+              <div className="space-y-2">
+                <label htmlFor="description" className="text-sm font-medium">
+                  Notes
+                </label>
+                <Input
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Additional notes..."
+                />
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="discipline" className="text-sm font-medium">
+                    Discipline
+                  </label>
+                  <Select
+                    value={discipline}
+                    onValueChange={handleDisciplineChange}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.entries(disciplineLabels) as [Discipline, string][]
+                      ).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="currency" className="text-sm font-medium">
+                    Currency
+                  </label>
+                  <Select value={currency} onValueChange={handleCurrencyChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">$ USD</SelectItem>
+                      <SelectItem value="CRC">{"\u20A1 CRC (Colones)"}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="monthlyFee" className="text-sm font-medium">
+                  Monthly Fee ({currency === "CRC" ? "\u20A1" : "$"})
+                </label>
+                <Input
+                  id="monthlyFee"
+                  type="number"
+                  value={monthlyFee}
+                  onChange={(e) => setMonthlyFee(Number(e.target.value))}
+                  min={0}
+                  required
+                />
+                {currency === "USD" && (
+                  <p className="text-xs text-muted-foreground">
+                    {isRateLoading
+                      ? "Cargando tipo de cambio..."
+                      : exchangeRate
+                        ? `Tasa usada: 1 USD = ${exchangeRate.toFixed(2)} CRC`
+                        : "No se pudo cargar la tasa. Puedes escribir el precio manualmente."}
+                  </p>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="startDate" className="text-sm font-medium">
+                    Start Date
+                  </label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="endDate" className="text-sm font-medium">
+                    End Date
+                  </label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            </>
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -486,13 +525,29 @@ export function MemberForm({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving
-                ? "Saving..."
-                : member
-                  ? "Save Changes"
-                  : "Add Member"}
-            </Button>
+            {step === 2 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(1)}
+                disabled={isSaving}
+              >
+                Atras
+              </Button>
+            )}
+            {step === 1 ? (
+              <Button type="button" onClick={handleNextStep} disabled={isSaving}>
+                Siguiente
+              </Button>
+            ) : (
+              <Button type="submit" disabled={isSaving}>
+                {isSaving
+                  ? "Saving..."
+                  : member
+                    ? "Save Changes"
+                    : "Add Member"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

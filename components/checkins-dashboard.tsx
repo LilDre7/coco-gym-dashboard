@@ -513,6 +513,10 @@ export function CheckInsDashboard({
   }, [checkIns, selectedDate]);
 
   const topNames = monthlyRanking.map((entry) => entry.name).join(", ");
+  const currentDateKey = formatLocalDateKey(new Date());
+  const isCurrentSelectedMonth = selectedDate.slice(0, 7) === currentDateKey.slice(0, 7);
+  const currentDayOfMonth = Number(currentDateKey.slice(8, 10));
+  const shouldShowMonthlyLeaders = !isCurrentSelectedMonth || currentDayOfMonth > 5;
 
   function updateForm<K extends keyof CheckInFormState>(
     key: K,
@@ -771,29 +775,35 @@ export function CheckInsDashboard({
       title: "Visitas hoy",
       value: metrics.visits.toString(),
       icon: UserRoundCheck,
-      iconShellClassName: "bg-primary/10",
-      iconClassName: "text-primary",
+      iconShellClassName: "bg-muted/40 border border-border",
+      iconClassName: "text-foreground",
     },
     {
       title: "Ventas hoy",
       value: metrics.sales.toString(),
       icon: ShoppingBag,
-      iconShellClassName: "bg-chart-4/10",
-      iconClassName: "text-chart-4",
+      iconShellClassName: "bg-muted/40 border border-border",
+      iconClassName: "text-foreground",
     },
     {
       title: "Total vendido",
       value: formatAmountCRC(metrics.totalSold),
       icon: Wallet,
-      iconShellClassName: "bg-primary/10",
-      iconClassName: "text-primary",
+      iconShellClassName: "bg-muted/40 border border-border",
+      iconClassName: "text-foreground",
     },
     {
-      title: `Mas asistencias mes (${monthlyRanking.length})`,
-      value: topNames ? `Empate: ${topNames}` : "Empate: -",
+      title: shouldShowMonthlyLeaders
+        ? `Mas asistencias mes (${monthlyRanking.length})`
+        : "Mas asistencias mes",
+      value: shouldShowMonthlyLeaders
+        ? topNames
+          ? `Empate: ${topNames}`
+          : "Empate: -"
+        : "Disponible desde dia 6",
       icon: Trophy,
-      iconShellClassName: "bg-primary/10",
-      iconClassName: "text-primary",
+      iconShellClassName: "bg-muted/40 border border-border",
+      iconClassName: "text-foreground",
       compact: true,
     },
   ];
@@ -1211,7 +1221,7 @@ export function CheckInsDashboard({
             className="h-10 w-full rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:w-auto"
             onClick={() => setIsAddOpen(true)}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-[18px] w-[18px]" />
             Agregar persona
           </Button>
           {!showInitialEmptyState ? (
@@ -1231,10 +1241,10 @@ export function CheckInsDashboard({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="rounded-full"
+              className="rounded-full text-foreground hover:bg-accent/70"
               onClick={() => setSelectedDate((current) => shiftDateKey(current, -1))}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-[18px] w-[18px]" />
             </Button>
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
@@ -1309,10 +1319,10 @@ export function CheckInsDashboard({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="rounded-full"
+              className="rounded-full text-foreground hover:bg-accent/70"
               onClick={() => setSelectedDate((current) => shiftDateKey(current, 1))}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-[18px] w-[18px]" />
             </Button>
           </div>
           <Button
@@ -1339,7 +1349,7 @@ export function CheckInsDashboard({
                 card.iconShellClassName
               )}
             >
-              <card.icon className={cn("h-4 w-4 sm:h-5 sm:w-5", card.iconClassName)} />
+              <card.icon className={cn("h-[18px] w-[18px] sm:h-[22px] sm:w-[22px]", card.iconClassName)} />
             </div>
             <div className={cn(card.compact && "min-w-0")}>
               <p
@@ -1438,17 +1448,17 @@ export function CheckInsDashboard({
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleDeleteCheckIn(checkIn.id)}
-                                className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                               >
-                                <Check className="h-4 w-4" />
+                                <Check className="h-[18px] w-[18px]" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => setConfirmingDelete(false)}
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-[18px] w-[18px]" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1512,13 +1522,13 @@ export function CheckInsDashboard({
                                 size="sm"
                                 onClick={() => updateEditing("hasPurchase", false)}
                                 className={cn(
-                                  "h-7 w-7 p-0",
+                                  "h-8 w-8 rounded-lg p-0",
                                   !editingState.hasPurchase
                                     ? "bg-primary text-primary-foreground"
                                     : "border-border text-muted-foreground"
                                 )}
                               >
-                                <LogIn className="h-3.5 w-3.5" />
+                                <LogIn className="h-4 w-4" />
                               </Button>
                               <Button
                                 type="button"
@@ -1526,13 +1536,13 @@ export function CheckInsDashboard({
                                 size="sm"
                                 onClick={() => updateEditing("hasPurchase", true)}
                                 className={cn(
-                                  "h-7 w-7 p-0",
+                                  "h-8 w-8 rounded-lg p-0",
                                   editingState.hasPurchase
                                     ? "bg-primary text-primary-foreground"
                                     : "border-border text-muted-foreground"
                                 )}
                               >
-                                <ShoppingBag className="h-3.5 w-3.5" />
+                                <ShoppingBag className="h-4 w-4" />
                               </Button>
                             </div>
                           ) : (
@@ -1623,37 +1633,37 @@ export function CheckInsDashboard({
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-emerald-600 transition hover:bg-accent dark:text-emerald-400"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
                                 aria-label={`Guardar ${checkIn.name}`}
                                 onClick={saveEditing}
                               >
-                                <Check className="h-4 w-4" />
+                                <Check className="h-[18px] w-[18px]" />
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-600 transition hover:bg-accent dark:text-red-400"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
                                 aria-label={`Eliminar ${checkIn.name}`}
                                 onClick={() => setConfirmingDelete(true)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-[18px] w-[18px]" />
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
                                 aria-label={`Cancelar edicion de ${checkIn.name}`}
                                 onClick={cancelEditing}
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-[18px] w-[18px]" />
                               </button>
                             </div>
                           ) : (
                             <button
                               type="button"
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
                               aria-label={`Editar ${checkIn.name}`}
                               onClick={() => startEditing(checkIn)}
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <Pencil className="h-4 w-4" />
                             </button>
                           )}
                         </TableCell>
