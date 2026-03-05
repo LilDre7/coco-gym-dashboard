@@ -3,7 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidateTag } from "next/cache";
 import { MemberRow, Discipline, Currency, StoreProductRow } from "./types";
-import { CheckIn, CheckInInput, CheckInRow, mapCheckInRow } from "./checkins";
+import {
+  COSTA_RICA_UTC_OFFSET,
+  CheckIn,
+  CheckInInput,
+  CheckInRow,
+  mapCheckInRow,
+} from "./checkins";
 import { formatPersonName, getFirstNameAndSurnameKey } from "./member-utils";
 
 const MISSING_CHECK_INS_TABLE_ERROR = "MISSING_CHECK_INS_TABLE";
@@ -165,6 +171,10 @@ function isMissingStoreProductsTableError(message: string): boolean {
 
 function throwMissingStoreProductsTableError() {
   throw new Error(MISSING_STORE_PRODUCTS_TABLE_ERROR);
+}
+
+function toCostaRicaIsoDateTime(date: string, time: string): string {
+  return new Date(`${date}T${time}:00${COSTA_RICA_UTC_OFFSET}`).toISOString();
 }
 
 async function assertUniqueByFirstNameAndSurname(params: {
@@ -400,13 +410,13 @@ export async function addCheckIn(input: CheckInInput): Promise<CheckIn> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const occurredAt = new Date(`${input.date}T${input.time}:00`);
+  const occurredAtIso = toCostaRicaIsoDateTime(input.date, input.time);
   const { data, error } = await supabase
     .from("check_ins")
     .insert({
       user_id: user.id,
       name: input.name.trim(),
-      occurred_at: occurredAt.toISOString(),
+      occurred_at: occurredAtIso,
       has_purchase: input.hasPurchase,
       product: input.hasPurchase ? input.product?.trim() ?? "" : "",
       payment_method: input.hasPurchase ? input.paymentMethod ?? null : null,
@@ -431,12 +441,12 @@ export async function updateCheckIn(id: string, input: CheckInInput) {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const occurredAt = new Date(`${input.date}T${input.time}:00`);
+  const occurredAtIso = toCostaRicaIsoDateTime(input.date, input.time);
   const { error } = await supabase
     .from("check_ins")
     .update({
       name: input.name.trim(),
-      occurred_at: occurredAt.toISOString(),
+      occurred_at: occurredAtIso,
       has_purchase: input.hasPurchase,
       product: input.hasPurchase ? input.product?.trim() ?? "" : "",
       payment_method: input.hasPurchase ? input.paymentMethod ?? null : null,

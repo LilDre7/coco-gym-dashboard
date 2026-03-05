@@ -1,18 +1,12 @@
 import { CheckInsDashboard } from "@/components/checkins-dashboard";
 import { getCheckIns, getMembers, getStoreProducts } from "@/lib/actions";
-import { formatLocalDateKey } from "@/lib/checkins";
+import { formatLocalDateKey, formatTimeHHMMInCostaRica } from "@/lib/checkins";
 import { enrichMemberData } from "@/lib/member-utils";
-
-function getDefaultTime(value: Date) {
-  const hours = value.getHours().toString().padStart(2, "0");
-  const minutes = value.getMinutes().toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
 
 export default async function DashboardPage() {
   const now = new Date();
   const initialDateKey = formatLocalDateKey(now);
-  const initialTime = getDefaultTime(now);
+  const initialTime = formatTimeHHMMInCostaRica(now);
 
   try {
     const checkIns = await getCheckIns();

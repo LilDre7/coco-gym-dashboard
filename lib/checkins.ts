@@ -41,8 +41,30 @@ export type AttendanceRankingEntry = {
   visits: number;
 };
 
-function pad(value: number): string {
-  return value.toString().padStart(2, "0");
+export const COSTA_RICA_TIME_ZONE = "America/Costa_Rica";
+export const COSTA_RICA_UTC_OFFSET = "-06:00";
+
+const costaRicaDatePartsFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: COSTA_RICA_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const costaRicaTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: COSTA_RICA_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function getDatePart(parts: Intl.DateTimeFormatPart[], type: "year" | "month" | "day"): string {
+  return parts.find((part) => part.type === type)?.value ?? "";
+}
+
+function getStableDateForDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 }
 
 function setLocalTime(date: Date, hours: number, minutes: number): Date {
@@ -86,9 +108,7 @@ function buildCheckIn(
 }
 
 export function buildCheckInDateTime(dateKey: string, time: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const [hours, minutes] = time.split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  return new Date(`${dateKey}T${time}:00${COSTA_RICA_UTC_OFFSET}`);
 }
 
 export function mapCheckInRow(row: CheckInRow): CheckIn {
@@ -102,7 +122,7 @@ export function mapCheckInRow(row: CheckInRow): CheckIn {
 
   return {
     id: row.id,
-    time: `${pad(datetime.getHours())}:${pad(datetime.getMinutes())}`,
+    time: costaRicaTimeFormatter.format(datetime),
     datetime: row.occurred_at,
     name: row.name,
     hasPurchase: row.has_purchase,
@@ -115,20 +135,31 @@ export function mapCheckInRow(row: CheckInRow): CheckIn {
 
 export function formatLocalDateKey(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value;
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const parts = costaRicaDatePartsFormatter.formatToParts(date);
+  const year = getDatePart(parts, "year");
+  const month = getDatePart(parts, "month");
+  const day = getDatePart(parts, "day");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatTimeHHMMInCostaRica(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return costaRicaTimeFormatter.format(date);
 }
 
 export function formatMonthLabel(dateKey: string): string {
-  const date = new Date(`${dateKey}T00:00:00`);
+  const date = getStableDateForDateKey(dateKey);
   return new Intl.DateTimeFormat("es-CR", {
+    timeZone: COSTA_RICA_TIME_ZONE,
     month: "long",
     year: "numeric",
   }).format(date);
 }
 
 export function formatSelectedDate(dateKey: string): string {
-  const date = new Date(`${dateKey}T00:00:00`);
+  const date = getStableDateForDateKey(dateKey);
   return new Intl.DateTimeFormat("es-CR", {
+    timeZone: COSTA_RICA_TIME_ZONE,
     weekday: "long",
     day: "numeric",
     month: "long",

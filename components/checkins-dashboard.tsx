@@ -270,6 +270,7 @@ export function CheckInsDashboard({
   const [paymentError, setPaymentError] = useState(false);
   const [mobileStep, setMobileStep] = useState(1);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
   // ─── FIX: totalMobileSteps is now dynamic based on hasPurchase ────────────
   const totalMobileSteps = formState.hasPurchase ? 3 : 2;
@@ -310,6 +311,35 @@ export function CheckInsDashboard({
       ) ?? null
     );
   }, [formState.name, initialMembers]);
+
+  const memberNameSuggestions = useMemo(() => {
+    const normalizedQuery = formatPersonName(formState.name).toLowerCase();
+    const names = Array.from(
+      new Set(
+        initialMembers
+          .map((member) => formatPersonName(member.name))
+          .filter((name) => name.length > 0)
+      )
+    ).sort((left, right) => left.localeCompare(right, "es-CR"));
+
+    if (!normalizedQuery) return names.slice(0, 8);
+
+    const startsWithMatches = names.filter((name) =>
+      name.toLowerCase().startsWith(normalizedQuery)
+    );
+    const containsMatches = names.filter(
+      (name) =>
+        !name.toLowerCase().startsWith(normalizedQuery) &&
+        name.toLowerCase().includes(normalizedQuery)
+    );
+
+    return [...startsWithMatches, ...containsMatches].slice(0, 8);
+  }, [formState.name, initialMembers]);
+
+  const shouldShowNameSuggestions =
+    showNameSuggestions &&
+    formatPersonName(formState.name).length > 0 &&
+    memberNameSuggestions.length > 0;
 
   const membersByNameKey = useMemo(() => {
     const entries = new Map<string, MemberWithStatus>();
@@ -516,6 +546,7 @@ export function CheckInsDashboard({
     setQuickProductName("");
     setPaymentError(false);
     setMobileStep(1);
+    setShowNameSuggestions(false);
   }
 
   function handleQuickCreateProduct() {
@@ -909,14 +940,58 @@ export function CheckInsDashboard({
           <div className={cn("space-y-4", mobileStep === 1 ? "block" : "hidden")}>
             <div className="space-y-2">
               <Label htmlFor="checkin-name">Nombre *</Label>
-              <Input
-                id="checkin-name"
-                value={formState.name}
-                onChange={(event) => updateForm("name", event.target.value)}
-                placeholder="Nombre de la persona"
-                required
-                className="bg-background border-border"
-              />
+              <div className="relative">
+                <Input
+                  id="checkin-name"
+                  value={formState.name}
+                  onChange={(event) => {
+                    updateForm("name", event.target.value);
+                    setShowNameSuggestions(true);
+                  }}
+                  onFocus={() => setShowNameSuggestions(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowNameSuggestions(false), 120);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setShowNameSuggestions(false);
+                    }
+                    if (event.key === "Enter" && shouldShowNameSuggestions) {
+                      event.preventDefault();
+                      const firstSuggestion = memberNameSuggestions[0];
+                      if (firstSuggestion) {
+                        updateForm("name", firstSuggestion);
+                        setShowNameSuggestions(false);
+                      }
+                    }
+                  }}
+                  placeholder="Nombre de la persona"
+                  autoComplete="off"
+                  required
+                  className="bg-background border-border"
+                />
+                {shouldShowNameSuggestions ? (
+                  <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-background shadow-md">
+                    <ul className="max-h-48 overflow-y-auto py-1">
+                      {memberNameSuggestions.map((name) => (
+                        <li key={name}>
+                          <button
+                            type="button"
+                            className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/60"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              updateForm("name", name);
+                              setShowNameSuggestions(false);
+                            }}
+                          >
+                            {name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
               {matchedMember ? (
                 <div className="rounded-xl border border-border bg-card/70 px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2">
