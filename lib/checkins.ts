@@ -180,21 +180,21 @@ export function getMonthlyAttendanceRanking(
   selectedDate: string,
   limit = 5
 ): AttendanceRankingEntry[] {
-  const [selectedYear, selectedMonth] = selectedDate.split("-").map(Number);
-  const counts = new Map<string, number>();
+  const selectedMonthKey = selectedDate.slice(0, 7);
+  const attendanceDaysByName = new Map<string, Set<string>>();
 
   for (const checkIn of checkIns) {
-    const date = new Date(checkIn.datetime);
-    if (
-      date.getFullYear() === selectedYear &&
-      date.getMonth() + 1 === selectedMonth
-    ) {
-      counts.set(checkIn.name, (counts.get(checkIn.name) ?? 0) + 1);
+    const dateKey = formatLocalDateKey(checkIn.datetime);
+    if (!dateKey.startsWith(selectedMonthKey)) continue;
+
+    if (!attendanceDaysByName.has(checkIn.name)) {
+      attendanceDaysByName.set(checkIn.name, new Set<string>());
     }
+    attendanceDaysByName.get(checkIn.name)?.add(dateKey);
   }
 
-  const sorted = Array.from(counts.entries())
-    .map(([name, visits]) => ({ name, visits }))
+  const sorted = Array.from(attendanceDaysByName.entries())
+    .map(([name, days]) => ({ name, visits: days.size }))
     .sort((left, right) => right.visits - left.visits || left.name.localeCompare(right.name));
 
   if (sorted.length <= limit) return sorted;

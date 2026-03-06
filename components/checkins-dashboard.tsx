@@ -564,14 +564,11 @@ export function CheckInsDashboard({
   }, [dayCheckIns]);
 
   const monthlyRanking = useMemo(() => {
-    return getMonthlyAttendanceRanking(checkIns, selectedDate, 5);
+    return getMonthlyAttendanceRanking(checkIns, selectedDate, 1);
   }, [checkIns, selectedDate]);
-
-  const topNames = monthlyRanking.map((entry) => entry.name).join(", ");
-  const currentDateKey = formatLocalDateKey(new Date());
-  const isCurrentSelectedMonth = selectedDate.slice(0, 7) === currentDateKey.slice(0, 7);
-  const currentDayOfMonth = Number(currentDateKey.slice(8, 10));
-  const shouldShowMonthlyLeaders = !isCurrentSelectedMonth || currentDayOfMonth > 5;
+  const topMonthlyVisits = monthlyRanking[0]?.visits ?? 0;
+  const monthlyLeadersNames = monthlyRanking.map((entry) => entry.name).join(", ");
+  const shouldShowMonthlyLeaders = topMonthlyVisits > 6;
 
   function updateForm<K extends keyof CheckInFormState>(
     key: K,
@@ -826,7 +823,7 @@ export function CheckInsDashboard({
     });
   }
 
-  function handleDeleteCheckIn(id: string) {
+  function handleDeleteCheckIn(id: string, name: string) {
     startTransition(async () => {
       try {
         await deleteCheckIn(id);
@@ -834,6 +831,7 @@ export function CheckInsDashboard({
         if (editingId === id) {
           cancelEditing();
         }
+        toast.success(`Se elimino a ${name}`);
         router.refresh();
       } catch (error) {
         console.error("Failed to delete check-in:", error);
@@ -904,13 +902,15 @@ export function CheckInsDashboard({
     },
     {
       title: shouldShowMonthlyLeaders
-        ? `Mas asistencias mes (${monthlyRanking.length})`
+        ? "Persona con mas asistencias del mes"
         : "Mas asistencias mes",
       value: shouldShowMonthlyLeaders
-        ? topNames
-          ? `Empate: ${topNames}`
-          : "Empate: -"
-        : "Disponible desde dia 6",
+        ? monthlyLeadersNames
+          ? monthlyRanking.length === 1
+            ? `${monthlyLeadersNames} (${topMonthlyVisits} dias)`
+            : `Empate (${topMonthlyVisits} dias): ${monthlyLeadersNames}`
+          : "-"
+        : "Disponible cuando supere 6 dias",
       icon: Trophy,
       iconShellClassName: "bg-muted/40 border border-border",
       iconClassName: "text-foreground",
@@ -1246,7 +1246,7 @@ export function CheckInsDashboard({
                     <SelectContent className="max-h-80">
                       {orderedProductGroups.map((group, index) => (
                         <SelectGroup key={group.category}>
-                          <SelectLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                          <SelectLabel className="px-2 py-1 text-[11.2px] font-semibold uppercase tracking-wide text-muted-foreground text-center">
                             {group.category}
                           </SelectLabel>
                           {group.products.map((product) => (
@@ -1621,7 +1621,7 @@ export function CheckInsDashboard({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDeleteCheckIn(checkIn.id)}
+                                onClick={() => handleDeleteCheckIn(checkIn.id, checkIn.name)}
                                 className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                               >
                                 <Check className="h-[18px] w-[18px]" />
