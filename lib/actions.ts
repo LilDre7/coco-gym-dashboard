@@ -10,7 +10,7 @@ import {
   CheckInRow,
   mapCheckInRow,
 } from "./checkins";
-import { formatPersonName, getFirstNameAndSurnameKey } from "./member-utils";
+import { formatPersonName } from "./member-utils";
 
 const MISSING_CHECK_INS_TABLE_ERROR = "MISSING_CHECK_INS_TABLE";
 const MISSING_STORE_PRODUCTS_TABLE_ERROR = "MISSING_STORE_PRODUCTS_TABLE";
@@ -177,20 +177,22 @@ function toCostaRicaIsoDateTime(date: string, time: string): string {
   return new Date(`${date}T${time}:00${COSTA_RICA_UTC_OFFSET}`).toISOString();
 }
 
-async function assertUniqueByFirstNameAndSurname(params: {
+async function assertUniqueByFullName(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
   candidateName: string;
   excludeMemberId?: string;
 }) {
   const { supabase, userId, candidateName, excludeMemberId } = params;
-  const candidateKey = getFirstNameAndSurnameKey(candidateName);
-  if (!candidateKey) return;
+  const normalizedCandidateName = formatPersonName(candidateName);
+  if (!normalizedCandidateName) return;
 
   let query = supabase
     .from("members")
-    .select("id, name")
-    .eq("user_id", userId);
+    .select("id")
+    .eq("user_id", userId)
+    .eq("name", normalizedCandidateName)
+    .limit(1);
 
   if (excludeMemberId?.trim()) {
     query = query.neq("id", excludeMemberId.trim());
@@ -200,12 +202,8 @@ async function assertUniqueByFirstNameAndSurname(params: {
 
   if (error) throw new Error(error.message);
 
-  const duplicate = (data ?? []).find((member) => {
-    return getFirstNameAndSurnameKey(member.name) === candidateKey;
-  });
-
-  if (duplicate) {
-    throw new Error("DUPLICATE_MEMBER_FIRST_NAME_LAST_NAME");
+  if ((data ?? []).length > 0) {
+    throw new Error("DUPLICATE_MEMBER_FULL_NAME");
   }
 }
 
@@ -243,7 +241,7 @@ export async function addMember(formData: {
   if (!user) throw new Error("Not authenticated");
 
   const normalizedName = formatPersonName(formData.name);
-  await assertUniqueByFirstNameAndSurname({
+  await assertUniqueByFullName({
     supabase,
     userId: user.id,
     candidateName: normalizedName,
@@ -289,11 +287,11 @@ export async function updateMember(
 
   if (existingMemberError) throw new Error(existingMemberError.message);
 
-  const existingNameKey = getFirstNameAndSurnameKey(existingMember?.name ?? "");
-  const normalizedNameKey = getFirstNameAndSurnameKey(normalizedName);
+  const existingNameKey = formatPersonName(existingMember?.name ?? "");
+  const normalizedNameKey = formatPersonName(normalizedName);
 
   if (existingNameKey !== normalizedNameKey) {
-    await assertUniqueByFirstNameAndSurname({
+    await assertUniqueByFullName({
       supabase,
       userId: user.id,
       candidateName: normalizedName,

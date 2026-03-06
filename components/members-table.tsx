@@ -294,10 +294,11 @@ export function MembersTable({ members }: MembersTableProps) {
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      if (message.includes("DUPLICATE_MEMBER_FIRST_NAME_LAST_NAME")) {
-        toast.error(
-          "Ya existe un miembro con el mismo nombre y primer apellido",
-        );
+      if (
+        message.includes("DUPLICATE_MEMBER_FULL_NAME") ||
+        message.includes("DUPLICATE_MEMBER_FIRST_NAME_LAST_NAME")
+      ) {
+        toast.error("Ya existe un miembro con ese nombre completo");
       } else {
         console.error("Failed to save member:", err);
         toast.error("No se pudo guardar el miembro");

@@ -50,7 +50,10 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -224,6 +227,14 @@ function decodeProductNameFromSelectValue(value: string) {
   return separatorIndex >= 0 ? value.slice(separatorIndex + 2) : value;
 }
 
+function getProductCounts(productNames: string[]) {
+  const counts = new Map<string, number>();
+  for (const name of productNames) {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([name, quantity]) => ({ name, quantity }));
+}
+
 function getSelectValueForProductName(
   products: StoreProductRow[],
   productName: string
@@ -271,6 +282,7 @@ export function CheckInsDashboard({
   const [mobileStep, setMobileStep] = useState(1);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   // ─── FIX: totalMobileSteps is now dynamic based on hasPurchase ────────────
   const totalMobileSteps = formState.hasPurchase ? 3 : 2;
@@ -288,10 +300,27 @@ export function CheckInsDashboard({
     }, {});
   }, [activeProducts]);
 
+  const orderedProductGroups = useMemo(
+    () =>
+      Object.entries(groupedProducts)
+        .sort(([left], [right]) => left.localeCompare(right, "es-CR"))
+        .map(([category, categoryProducts]) => ({
+          category,
+          products: [...categoryProducts].sort((left, right) =>
+            left.name.localeCompare(right.name, "es-CR")
+          ),
+        })),
+    [groupedProducts]
+  );
+
   // ─── FIX: clamp mobileStep when totalMobileSteps shrinks ─────────────────
   useEffect(() => {
     setMobileStep((current) => Math.min(current, totalMobileSteps));
   }, [totalMobileSteps]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const matchedMember = useMemo(() => {
     const normalizedName = formatPersonName(formState.name);
@@ -380,6 +409,11 @@ export function CheckInsDashboard({
     [selectedProducts, activeProducts]
   );
 
+  const selectedProductCounts = useMemo(
+    () => getProductCounts(selectedProducts),
+    [selectedProducts]
+  );
+
   function getProductByName(name: string) {
     return activeProducts.find((product) => product.name === name);
   }
@@ -400,13 +434,34 @@ export function CheckInsDashboard({
 
   function addSelectedProduct(name: string) {
     const productName = decodeProductNameFromSelectValue(name);
-    if (!productName || selectedProducts.includes(productName)) return;
+    if (!productName) return;
     syncSelectedProducts([...selectedProducts, productName]);
+    toast.success(`Producto agregado: ${productName}`);
   }
 
-  function removeSelectedProduct(name: string) {
-    const nextProducts = selectedProducts.filter((product) => product !== name);
+  function removeSelectedProductAt(indexToRemove: number) {
+    const nextProducts = selectedProducts.filter((_, index) => index !== indexToRemove);
     syncSelectedProducts(nextProducts);
+  }
+
+  function removeOneSelectedProduct(name: string) {
+    const index = selectedProducts.indexOf(name);
+    if (index < 0) return;
+    removeSelectedProductAt(index);
+  }
+
+  function parseStoredProductList(value: string) {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function sumProductsAmount(productNames: string[]) {
+    return productNames.reduce(
+      (sum, productName) => sum + (getProductByName(productName)?.price ?? 0),
+      0
+    );
   }
 
   function toPayload(state: CheckInFormState, date: string): CheckInInput {
@@ -610,13 +665,14 @@ export function CheckInsDashboard({
   }
 
   function startEditing(checkIn: CheckIn) {
+    const initialProducts = parseStoredProductList(checkIn.product ?? "");
     setEditingId(checkIn.id);
     setConfirmingDelete(false);
     setEditingState({
       name: checkIn.name,
       time: checkIn.time,
       hasPurchase: checkIn.hasPurchase,
-      product: checkIn.product ?? "",
+      product: initialProducts.join(", "),
       paymentMethod: checkIn.paymentMethod ?? "NONE",
       amount: checkIn.amount ? String(checkIn.amount) : "",
       notes: checkIn.notes ?? "",
@@ -627,22 +683,72 @@ export function CheckInsDashboard({
     key: K,
     value: CheckInFormState[K]
   ) {
+    if (key === "hasPurchase") {
+      const hasPurchase = Boolean(value);
+      setEditingState((current) => {
+        if (!current) return current;
+        if (!hasPurchase) {
+          return {
+            ...current,
+            hasPurchase,
+            product: "",
+            paymentMethod: "NONE",
+            amount: "",
+          };
+        }
+        return { ...current, hasPurchase };
+      });
+      return;
+    }
+
     if (key === "product") {
       const productName = decodeProductNameFromSelectValue(String(value));
-      const selectedProduct = getProductByName(productName);
+      if (!productName) return;
       setEditingState((current) =>
         current
           ? {
             ...current,
-            product: productName,
-            amount: selectedProduct ? String(selectedProduct.price) : "",
+            product: [...parseStoredProductList(current.product), productName].join(", "),
+            amount: String(
+              sumProductsAmount([...parseStoredProductList(current.product), productName])
+            ),
           }
           : current
       );
+      toast.success(`Producto agregado: ${productName}`);
       return;
     }
 
     setEditingState((current) => (current ? { ...current, [key]: value } : current));
+  }
+
+  function removeEditingProductAt(indexToRemove: number) {
+    setEditingState((current) => {
+      if (!current) return current;
+      const nextProducts = parseStoredProductList(current.product).filter(
+        (_, index) => index !== indexToRemove
+      );
+      return {
+        ...current,
+        product: nextProducts.join(", "),
+        amount: String(sumProductsAmount(nextProducts)),
+      };
+    });
+  }
+
+  function removeOneEditingProduct(name: string) {
+    setEditingState((current) => {
+      if (!current) return current;
+      const products = parseStoredProductList(current.product);
+      const indexToRemove = products.indexOf(name);
+      if (indexToRemove < 0) return current;
+      const nextProducts = products.filter((_, index) => index !== indexToRemove);
+      return {
+        ...current,
+        product: nextProducts.join(", "),
+        amount: String(sumProductsAmount(nextProducts)),
+      };
+    });
   }
 
   function cancelEditing() {
@@ -658,6 +764,10 @@ export function CheckInsDashboard({
     if (!name || !time) return;
     if (editingState.hasPurchase && !editingState.product.trim()) {
       toast.error("Selecciona un producto de la tienda");
+      return;
+    }
+    if (editingState.hasPurchase && editingState.paymentMethod === "NONE") {
+      toast.error("Selecciona un metodo de pago");
       return;
     }
 
@@ -808,13 +918,13 @@ export function CheckInsDashboard({
     },
   ];
 
-  const priceCategoriesFromStore: PriceCategory[] = Object.entries(groupedProducts).map(
-    ([title, categoryProducts]) => ({
-      title,
+  const priceCategoriesFromStore: PriceCategory[] = orderedProductGroups.map(
+    ({ category, products: categoryProducts }) => ({
+      title: category,
       icon:
-        title.toLowerCase().includes("bebida")
+        category.toLowerCase().includes("bebida")
           ? Droplets
-          : title.toLowerCase().includes("membre")
+          : category.toLowerCase().includes("membre")
             ? Dumbbell
             : Package,
       items: categoryProducts.map((product) => ({
@@ -1061,23 +1171,30 @@ export function CheckInsDashboard({
           {/* ── Step 2 (with purchase): Compra ─────────────────────────────── */}
           {formState.hasPurchase && (
             <div className={cn("space-y-3", mobileStep === 2 ? "block" : "hidden")}>
-              <div className="space-y-2">
-                <Label htmlFor="checkin-product">Productos</Label>
-                <div className="min-h-[46px] rounded-2xl border border-border bg-background px-3 py-2">
+              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="checkin-product" className="text-sm font-semibold">
+                    Productos
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    {selectedProducts.length} seleccionados
+                  </span>
+                </div>
+                <div className="min-h-[50px] rounded-xl border border-border bg-background px-3 py-2">
                   {selectedProducts.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                      {selectedProducts.map((productName) => (
+                      {selectedProductCounts.map(({ name, quantity }) => (
                         <Badge
-                          key={productName}
+                          key={name}
                           variant="secondary"
                           className="rounded-full border border-lime-200 bg-lime-100 px-3 py-1 text-lime-700"
                         >
-                          <span>{productName}</span>
+                          <span>{name}{quantity > 1 ? ` x${quantity}` : ""}</span>
                           <button
                             type="button"
-                            onClick={() => removeSelectedProduct(productName)}
+                            onClick={() => removeOneSelectedProduct(name)}
                             className="ml-1 rounded-full text-lime-700/80 transition hover:bg-accent hover:text-lime-900 dark:text-lime-300/90 dark:hover:text-lime-200"
-                            aria-label={`Quitar ${productName}`}
+                            aria-label={`Quitar 1 ${name}`}
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -1090,18 +1207,59 @@ export function CheckInsDashboard({
                     </span>
                   )}
                 </div>
-                <Select value={undefined} onValueChange={addSelectedProduct}>
-                  <SelectTrigger id="checkin-product" className="h-11 w-fit min-w-[192px] rounded-xl border-border bg-background shadow-none">
-                    <SelectValue placeholder="Agregar producto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeProducts.map((product) => (
-                      <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
-                        {product.name} · {formatAmountCRC(product.price)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {activeProducts.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+                          <ShoppingBag className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-foreground">
+                            No hay productos en tienda
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Agrega productos para seleccionarlos en el check-in.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg"
+                        onClick={() => router.push("/dashboard/store")}
+                      >
+                        Abrir tienda
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Select
+                    key={`add-product-select-${selectedProducts.length}`}
+                    value={undefined}
+                    onValueChange={addSelectedProduct}
+                  >
+                    <SelectTrigger id="checkin-product" className="h-11 w-full rounded-xl border-border bg-background shadow-none">
+                      <SelectValue placeholder="Agregar producto" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                      {orderedProductGroups.map((group, index) => (
+                        <SelectGroup key={group.category}>
+                          <SelectLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                            {group.category}
+                          </SelectLabel>
+                          {group.products.map((product) => (
+                            <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                          {index < orderedProductGroups.length - 1 ? <SelectSeparator /> : null}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-2">
                     <Input
@@ -1246,75 +1404,91 @@ export function CheckInsDashboard({
             >
               <ChevronLeft className="h-[18px] w-[18px]" />
             </Button>
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center hover:bg-accent/60 sm:min-w-[220px] sm:flex-none"
+            {isMounted ? (
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center hover:bg-accent/60 sm:min-w-[220px] sm:flex-none"
+                  >
+                    <div className="flex w-full items-center justify-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                      <span className="truncate text-sm font-semibold text-foreground sm:text-base">
+                        {formatSelectedDate(selectedDate)}
+                      </span>
+                    </div>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="center"
+                  className="w-[min(92vw,300px)] rounded-[1.25rem] border-border/70 bg-card/95 p-2.5 shadow-xl backdrop-blur"
                 >
-                  <div className="flex w-full items-center justify-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                    <span className="truncate text-sm font-semibold text-foreground sm:text-base">
-                      {formatSelectedDate(selectedDate)}
-                    </span>
+                  <Calendar
+                    mode="single"
+                    selected={dateKeyToDate(selectedDate)}
+                    onSelect={(date) => {
+                      if (!date) return;
+                      setSelectedDate(formatLocalDateKey(date));
+                      setCalendarOpen(false);
+                    }}
+                    className="mx-auto rounded-xl text-sm [--cell-size:2rem]"
+                    classNames={{
+                      month: "flex flex-col w-full gap-2.5",
+                      month_caption: "flex items-center justify-center h-8 w-full px-8",
+                      caption_label: "text-sm font-semibold",
+                      nav: "flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between",
+                      button_previous:
+                        "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
+                      button_next:
+                        "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
+                      weekdays: "mt-0.5 flex",
+                      weekday:
+                        "text-muted-foreground rounded-md flex-1 text-[11px] font-medium uppercase tracking-[0.08em]",
+                      week: "mt-0.5 flex w-full",
+                    }}
+                  />
+                  <div className="mt-2.5 flex gap-2 border-t border-border/70 pt-2.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 flex-1 rounded-xl"
+                      onClick={() => {
+                        setSelectedDate(initialDateKey);
+                        setCalendarOpen(false);
+                      }}
+                    >
+                      Hoy
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 flex-1 rounded-xl"
+                      onClick={() => {
+                        setSelectedDate(shiftDateKey(initialDateKey, -1));
+                        setCalendarOpen(false);
+                      }}
+                    >
+                      Ayer
+                    </Button>
                   </div>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="center"
-                className="w-[min(92vw,300px)] rounded-[1.25rem] border-border/70 bg-card/95 p-2.5 shadow-xl backdrop-blur"
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center sm:min-w-[220px] sm:flex-none"
+                disabled
               >
-                <Calendar
-                  mode="single"
-                  selected={dateKeyToDate(selectedDate)}
-                  onSelect={(date) => {
-                    if (!date) return;
-                    setSelectedDate(formatLocalDateKey(date));
-                    setCalendarOpen(false);
-                  }}
-                  className="mx-auto rounded-xl text-sm [--cell-size:2rem]"
-                  classNames={{
-                    month: "flex flex-col w-full gap-2.5",
-                    month_caption: "flex items-center justify-center h-8 w-full px-8",
-                    caption_label: "text-sm font-semibold",
-                    nav: "flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between",
-                    button_previous:
-                      "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
-                    button_next:
-                      "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
-                    weekdays: "mt-0.5 flex",
-                    weekday:
-                      "text-muted-foreground rounded-md flex-1 text-[11px] font-medium uppercase tracking-[0.08em]",
-                    week: "mt-0.5 flex w-full",
-                  }}
-                />
-                <div className="mt-2.5 flex gap-2 border-t border-border/70 pt-2.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 flex-1 rounded-xl"
-                    onClick={() => {
-                      setSelectedDate(initialDateKey);
-                      setCalendarOpen(false);
-                    }}
-                  >
-                    Hoy
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 flex-1 rounded-xl"
-                    onClick={() => {
-                      setSelectedDate(shiftDateKey(initialDateKey, -1));
-                      setCalendarOpen(false);
-                    }}
-                  >
-                    Ayer
-                  </Button>
+                <div className="flex w-full items-center justify-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate text-sm font-semibold text-foreground sm:text-base">
+                    {formatSelectedDate(selectedDate)}
+                  </span>
                 </div>
-              </PopoverContent>
-            </Popover>
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
@@ -1472,16 +1646,7 @@ export function CheckInsDashboard({
                         isEditing && "bg-secondary/30"
                       )}>
                         <TableCell className="p-2 font-mono text-sm text-muted-foreground">
-                          {isEditing ? (
-                            <Input
-                              type="time"
-                              value={editingState.time}
-                              onChange={(event) => updateEditing("time", event.target.value)}
-                              className="h-8 w-[88px] rounded-md border-border bg-background px-2 py-1 text-sm shadow-none"
-                            />
-                          ) : (
-                            checkIn.time
-                          )}
+                          {checkIn.time}
                         </TableCell>
                         <TableCell className="p-2 font-medium text-foreground">
                           {isEditing ? (
@@ -1562,22 +1727,54 @@ export function CheckInsDashboard({
                         </TableCell>
                         <TableCell className="p-2 text-muted-foreground">
                           {isEditing ? (
-                            <Select
-                              value={getSelectValueForProductName(activeProducts, editingState.product)}
-                              onValueChange={(value) => updateEditing("product", value)}
-                              disabled={!editingState.hasPurchase || activeProducts.length === 0}
-                            >
-                              <SelectTrigger className="h-8 min-w-[220px] rounded-md border-border bg-background text-xs shadow-none">
-                                <SelectValue placeholder="-" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {activeProducts.map((product) => (
-                                  <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
-                                    {product.name} · {formatAmountCRC(product.price)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="min-w-[220px] space-y-1.5">
+                              {parseStoredProductList(editingState.product).length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {getProductCounts(parseStoredProductList(editingState.product)).map(({ name, quantity }) => (
+                                    <Badge
+                                      key={name}
+                                      variant="secondary"
+                                      className="rounded-full border border-lime-200 bg-lime-100 px-2 py-0.5 text-[11px] text-lime-700"
+                                    >
+                                      <span>{name}{quantity > 1 ? ` x${quantity}` : ""}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeOneEditingProduct(name)}
+                                        className="ml-1 rounded-full text-lime-700/80 transition hover:bg-accent hover:text-lime-900"
+                                        aria-label={`Quitar 1 ${name}`}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : null}
+                              <Select
+                                key={`edit-product-select-${parseStoredProductList(editingState.product).length}`}
+                                value={undefined}
+                                onValueChange={(value) => updateEditing("product", value)}
+                                disabled={!editingState.hasPurchase || activeProducts.length === 0}
+                              >
+                                <SelectTrigger className="h-8 min-w-[220px] rounded-md border-border bg-background text-xs shadow-none">
+                                  <SelectValue placeholder={editingState.hasPurchase ? "Agregar producto" : "-"} />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-80">
+                                  {orderedProductGroups.map((group, index) => (
+                                    <SelectGroup key={group.category}>
+                                      <SelectLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                                        {group.category}
+                                      </SelectLabel>
+                                      {group.products.map((product) => (
+                                        <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
+                                          {product.name}
+                                        </SelectItem>
+                                      ))}
+                                      {index < orderedProductGroups.length - 1 ? <SelectSeparator /> : null}
+                                    </SelectGroup>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           ) : (
                             checkIn.product ?? "—"
                           )}
@@ -1633,7 +1830,7 @@ export function CheckInsDashboard({
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-700"
                                 aria-label={`Guardar ${checkIn.name}`}
                                 onClick={saveEditing}
                               >
@@ -1641,7 +1838,7 @@ export function CheckInsDashboard({
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-100 hover:text-red-700"
                                 aria-label={`Eliminar ${checkIn.name}`}
                                 onClick={() => setConfirmingDelete(true)}
                               >
@@ -1649,7 +1846,7 @@ export function CheckInsDashboard({
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition hover:bg-amber-100 hover:text-amber-700"
                                 aria-label={`Cancelar edicion de ${checkIn.name}`}
                                 onClick={cancelEditing}
                               >
@@ -1659,7 +1856,7 @@ export function CheckInsDashboard({
                           ) : (
                             <button
                               type="button"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sky-600 transition hover:bg-sky-100 hover:text-sky-700"
                               aria-label={`Editar ${checkIn.name}`}
                               onClick={() => startEditing(checkIn)}
                             >
@@ -1679,3 +1876,5 @@ export function CheckInsDashboard({
     </main>
   );
 }
+
+

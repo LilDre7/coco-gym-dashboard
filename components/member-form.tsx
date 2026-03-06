@@ -245,10 +245,20 @@ export function MemberForm({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFinalSave = () => {
     const normalizedName = formatPersonName(name);
     setName(normalizedName);
+
+    if (!startDate) {
+      toast.error("La fecha de inicio es obligatoria");
+      return;
+    }
+
+    if (!endDate) {
+      toast.error("La fecha de fin es obligatoria");
+      return;
+    }
+
     onSave(
       {
         name: normalizedName,
@@ -282,6 +292,12 @@ export function MemberForm({
     setStep(2);
   };
 
+  const handleFormKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
+    if (step !== 1 || event.key !== "Enter") return;
+    event.preventDefault();
+    handleNextStep();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -293,7 +309,7 @@ export function MemberForm({
             Paso {step} de {totalSteps} - {step === 1 ? "Perfil" : "Membresia"}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => e.preventDefault()} onKeyDown={handleFormKeyDown} className="space-y-4">
           <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${totalSteps}, 1fr)` }}>
             {Array.from({ length: totalSteps }, (_, index) => {
               const current = index + 1;
@@ -540,7 +556,7 @@ export function MemberForm({
                 Siguiente
               </Button>
             ) : (
-              <Button type="submit" disabled={isSaving}>
+              <Button type="button" onClick={handleFinalSave} disabled={isSaving}>
                 {isSaving
                   ? "Saving..."
                   : member
