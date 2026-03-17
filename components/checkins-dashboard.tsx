@@ -283,6 +283,7 @@ export function CheckInsDashboard({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [isSalesDetailOpen, setIsSalesDetailOpen] = useState(false);
 
   // ─── FIX: totalMobileSteps is now dynamic based on hasPurchase ────────────
   const totalMobileSteps = formState.hasPurchase ? 3 : 2;
@@ -340,6 +341,40 @@ export function CheckInsDashboard({
       ) ?? null
     );
   }, [formState.name, initialMembers]);
+
+  const monthlyAttendanceForTypedName = useMemo(() => {
+    const normalizedName = formatPersonName(formState.name);
+    if (!normalizedName.trim()) return null;
+
+    const referenceName = matchedMember?.name ?? normalizedName;
+    const referenceFullName = formatPersonName(referenceName);
+    const referenceKey = getFirstNameAndSurnameKey(referenceName);
+    const selectedMonthKey = selectedDate.slice(0, 7);
+    const visitDays = new Set<string>();
+
+    for (const checkIn of checkIns) {
+      const checkInDateKey = formatLocalDateKey(checkIn.datetime);
+      if (!checkInDateKey.startsWith(selectedMonthKey)) continue;
+
+      const checkInFullName = formatPersonName(checkIn.name);
+      const checkInKey = getFirstNameAndSurnameKey(checkIn.name);
+      const matchesByFullName =
+        checkInFullName.length > 0 && checkInFullName === referenceFullName;
+      const matchesByKey =
+        Boolean(referenceKey) &&
+        Boolean(checkInKey) &&
+        checkInKey === referenceKey;
+
+      if (matchesByFullName || matchesByKey) {
+        visitDays.add(checkInDateKey);
+      }
+    }
+
+    return {
+      name: referenceName,
+      visits: visitDays.size,
+    };
+  }, [checkIns, formState.name, matchedMember, selectedDate]);
 
   const memberNameSuggestions = useMemo(() => {
     const normalizedQuery = formatPersonName(formState.name).toLowerCase();
@@ -560,6 +595,29 @@ export function CheckInsDashboard({
       visits: dayCheckIns.length,
       sales: sales.length,
       totalSold,
+    };
+  }, [dayCheckIns]);
+
+  const salesDetail = useMemo(() => {
+    const sales = dayCheckIns.filter((checkIn) => checkIn.hasPurchase);
+    const totalsByPaymentMethod = new Map<string, number>();
+
+    for (const sale of sales) {
+      const paymentKey = sale.paymentMethod ?? "SIN METODO";
+      totalsByPaymentMethod.set(
+        paymentKey,
+        (totalsByPaymentMethod.get(paymentKey) ?? 0) + (sale.amount ?? 0)
+      );
+    }
+
+    return {
+      sales,
+      totalsByPaymentMethod: Array.from(totalsByPaymentMethod.entries())
+        .map(([paymentMethod, total]) => ({
+          paymentMethod,
+          total,
+        }))
+        .sort((left, right) => right.total - left.total),
     };
   }, [dayCheckIns]);
 
@@ -897,8 +955,10 @@ export function CheckInsDashboard({
       title: "Total vendido",
       value: formatAmountCRC(metrics.totalSold),
       icon: Wallet,
-      iconShellClassName: "bg-muted/40 border border-border",
-      iconClassName: "text-foreground",
+      iconShellClassName: "bg-primary/12 border border-primary/20",
+      iconClassName: "text-primary",
+      detailLabel: "Ver detalle",
+      onClick: () => setIsSalesDetailOpen(true),
     },
     {
       title: shouldShowMonthlyLeaders
@@ -1005,6 +1065,114 @@ export function CheckInsDashboard({
       </Sheet>
 
       {/* ── Add Check-in Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={isSalesDetailOpen} onOpenChange={setIsSalesDetailOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Total vendido</DialogTitle>
+            <DialogDescription>
+              Resumen de ventas del {formatSelectedDate(selectedDate)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border bg-card px-4 py-4">
+                <p className="text-sm text-muted-foreground">Total del dia</p>
+                <p className="mt-1 text-2xl font-bold text-foreground">
+                  {formatAmountCRC(metrics.totalSold)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border bg-card px-4 py-4">
+                <p className="text-sm text-muted-foreground">Ventas registradas</p>
+                <p className="mt-1 text-2xl font-bold text-foreground">{metrics.sales}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-card px-4 py-4">
+                <p className="text-sm text-muted-foreground">Promedio por venta</p>
+                <p className="mt-1 text-2xl font-bold text-foreground">
+                  {formatAmountCRC(
+                    metrics.sales > 0 ? Math.round(metrics.totalSold / metrics.sales) : 0
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card">
+              <div className="border-b border-border px-4 py-3">
+                <h3 className="text-sm font-semibold text-foreground">Totales por metodo de pago</h3>
+              </div>
+              <div className="divide-y divide-border">
+                {salesDetail.totalsByPaymentMethod.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    No hay ventas registradas para este dia.
+                  </div>
+                ) : (
+                  salesDetail.totalsByPaymentMethod.map(({ paymentMethod, total }) => (
+                    <div
+                      key={paymentMethod}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                      <span className="text-sm font-medium text-foreground">{paymentMethod}</span>
+                      <span className="text-sm font-semibold text-primary">
+                        {formatAmountCRC(total)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card">
+              <div className="border-b border-border px-4 py-3">
+                <h3 className="text-sm font-semibold text-foreground">Detalle de ventas</h3>
+              </div>
+              <div className="divide-y divide-border">
+                {salesDetail.sales.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    Todavia no hay compras cargadas en esta fecha.
+                  </div>
+                ) : (
+                  salesDetail.sales.map((sale) => {
+                    const products = parseStoredProductList(sale.product ?? "");
+
+                    return (
+                      <div key={sale.id} className="space-y-3 px-4 py-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{sale.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {sale.time}
+                              {sale.paymentMethod ? ` • ${sale.paymentMethod}` : ""}
+                            </p>
+                          </div>
+                          <p className="text-base font-semibold text-primary">
+                            {formatAmountCRC(sale.amount ?? 0)}
+                          </p>
+                        </div>
+
+                        {products.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {getProductCounts(products).map(({ name, quantity }) => (
+                              <Badge
+                                key={`${sale.id}-${name}`}
+                                variant="outline"
+                                className="border-border bg-background text-foreground"
+                              >
+                                {quantity > 1 ? `${quantity}x ` : ""}
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={isAddOpen}
         onOpenChange={(open) => {
@@ -1130,6 +1298,23 @@ export function CheckInsDashboard({
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Coincide con miembro: {matchedMember.name}
+                  </p>
+                </div>
+              ) : null}
+              {monthlyAttendanceForTypedName ? (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {monthlyAttendanceForTypedName.visits}{" "}
+                      {monthlyAttendanceForTypedName.visits === 1 ? "visita" : "visitas"} este
+                      mes
+                    </p>
+                    <Badge variant="outline" className="border-primary/20 bg-background text-primary">
+                      {selectedDate.slice(0, 7)}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {monthlyAttendanceForTypedName.name}
                   </p>
                 </div>
               ) : null}
@@ -1513,9 +1698,15 @@ export function CheckInsDashboard({
       {/* ── Metric cards ────────────────────────────────────────────────────── */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {metricCards.map((card) => (
-          <div
+          <button
             key={card.title}
-            className="flex min-h-[80px] items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 sm:min-h-[88px] sm:gap-4"
+            type="button"
+            onClick={card.onClick}
+            className={cn(
+              "flex min-h-[80px] items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 text-left sm:min-h-[88px] sm:gap-4",
+              card.onClick && "transition-colors hover:bg-accent/40",
+              card.detailLabel && "border-primary/25 bg-primary/5 shadow-sm hover:bg-primary/10"
+            )}
           >
             <div
               className={cn(
@@ -1525,7 +1716,7 @@ export function CheckInsDashboard({
             >
               <card.icon className={cn("h-[18px] w-[18px] sm:h-[22px] sm:w-[22px]", card.iconClassName)} />
             </div>
-            <div className={cn(card.compact && "min-w-0")}>
+            <div className={cn("flex-1", card.compact && "min-w-0")}>
               <p
                 className={cn(
                   "font-bold text-foreground",
@@ -1537,8 +1728,14 @@ export function CheckInsDashboard({
                 {card.value}
               </p>
               <p className="text-sm text-muted-foreground">{card.title}</p>
+              {card.detailLabel ? (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
+                  <span>{card.detailLabel}</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </div>
+              ) : null}
             </div>
-          </div>
+          </button>
         ))}
       </section>
 
