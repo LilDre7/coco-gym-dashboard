@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Input } from "@/components/ui/input";
@@ -47,9 +48,18 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
   const [confirmPassword, setConfirmPassword] = useState("");
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
+  useEffect(() => {
+    trackEvent("dashboard_screen_viewed", {
+      pathname,
+    });
+  }, [pathname]);
+
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    trackEvent("auth_logout_succeeded", {
+      pathname,
+    });
     toast.success("Sesión cerrada");
     router.push("/");
     router.refresh();
@@ -78,11 +88,15 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
     setUpdatingPassword(false);
 
     if (error) {
+      trackEvent("auth_password_change_failed", {
+        error_message: error.message,
+      });
       toast.error(error.message);
       return;
     }
 
     toast.success("Contraseña actualizada correctamente.");
+    trackEvent("auth_password_changed");
     setNewPassword("");
     setConfirmPassword("");
     setPasswordDialogOpen(false);
@@ -123,7 +137,12 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={onToggleSidebar}
+          onClick={() => {
+            trackEvent("dashboard_sidebar_toggled", {
+              next_state: sidebarOpen ? "collapsed" : "expanded",
+            });
+            onToggleSidebar();
+          }}
           title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           className="absolute top-1/2 -right-3 z-20 h-8 w-8 -translate-y-1/2 rounded-full border border-border/80 bg-background text-foreground shadow-md transition-all duration-200 hover:bg-muted hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring/70"
         >
@@ -152,7 +171,13 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
               <Button
                 key={item.href}
                 variant="ghost"
-                onClick={() => router.push(item.href)}
+                onClick={() => {
+                  trackEvent("dashboard_navigation_clicked", {
+                    source: "sidebar",
+                    destination: item.href,
+                  });
+                  router.push(item.href);
+                }}
                 title={!sidebarOpen ? item.label : undefined}
                 className={cn(
                   "h-10 rounded-lg text-sm font-normal text-muted-foreground transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted/60 hover:text-foreground",
@@ -179,7 +204,12 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
           </div>
           <Button
             variant="ghost"
-            onClick={() => setPasswordDialogOpen(true)}
+            onClick={() => {
+              trackEvent("auth_password_dialog_opened", {
+                source: "sidebar",
+              });
+              setPasswordDialogOpen(true);
+            }}
             title={!sidebarOpen ? "Cambiar contraseña" : undefined}
             className={cn(
               "h-10 rounded-lg text-muted-foreground transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted/60 hover:text-foreground",
@@ -234,7 +264,12 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setPasswordDialogOpen(true)}
+              onClick={() => {
+                trackEvent("auth_password_dialog_opened", {
+                  source: "mobile_header",
+                });
+                setPasswordDialogOpen(true);
+              }}
               className="text-muted-foreground hover:text-foreground"
             >
               <KeyRound className="h-4 w-4" />
@@ -263,7 +298,13 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
                 key={item.href}
                 variant="ghost"
                 size="sm"
-                onClick={() => router.push(item.href)}
+                onClick={() => {
+                  trackEvent("dashboard_navigation_clicked", {
+                    source: "mobile_nav",
+                    destination: item.href,
+                  });
+                  router.push(item.href);
+                }}
                 className={cn(
                   "gap-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   isActive && "bg-muted text-foreground"

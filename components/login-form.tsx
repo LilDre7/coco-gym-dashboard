@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,14 @@ export function LoginForm() {
         password,
       });
       if (error) {
+        trackEvent("auth_login_failed", {
+          error_message: error.message,
+        });
         setError(error.message);
         setIsLoading(false);
         return;
       }
+      trackEvent("auth_login_succeeded");
       router.push("/dashboard/members");
       router.refresh();
     } else {
@@ -49,10 +54,14 @@ export function LoginForm() {
         },
       });
       if (error) {
+        trackEvent("auth_signup_failed", {
+          error_message: error.message,
+        });
         setError(error.message);
         setIsLoading(false);
         return;
       }
+      trackEvent("auth_signup_succeeded");
       setSignupSuccess(true);
       setIsLoading(false);
     }
@@ -63,6 +72,9 @@ export function LoginForm() {
     setInfo(null);
 
     if (!email) {
+      trackEvent("auth_password_reset_blocked", {
+        reason: "missing_email",
+      });
       setError("Enter your email first to receive a reset link.");
       return;
     }
@@ -78,10 +90,14 @@ export function LoginForm() {
     setIsLoading(false);
 
     if (error) {
+      trackEvent("auth_password_reset_failed", {
+        error_message: error.message,
+      });
       setError(error.message);
       return;
     }
 
+    trackEvent("auth_password_reset_requested");
     setInfo("We sent you a password reset link. Check your inbox.");
   };
 
@@ -111,6 +127,7 @@ export function LoginForm() {
             variant="outline"
             className="w-full"
             onClick={() => {
+              trackEvent("auth_mode_switched", { mode: "login" });
               setSignupSuccess(false);
               setMode("login");
               setPassword("");
@@ -220,6 +237,7 @@ export function LoginForm() {
                   type="button"
                   className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
                   onClick={() => {
+                    trackEvent("auth_mode_switched", { mode: "signup" });
                     setMode("signup");
                     setError(null);
                     setInfo(null);
@@ -235,6 +253,7 @@ export function LoginForm() {
                   type="button"
                   className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
                   onClick={() => {
+                    trackEvent("auth_mode_switched", { mode: "login" });
                     setMode("login");
                     setError(null);
                     setInfo(null);

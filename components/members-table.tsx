@@ -84,6 +84,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { fireSuccessConfetti } from "@/lib/confetti";
+import { trackEvent } from "@/lib/analytics";
 
 interface MembersTableProps {
   members: MemberWithStatus[];
@@ -256,11 +257,19 @@ export function MembersTable({ members }: MembersTableProps) {
   );
 
   const handleEdit = (member: MemberWithStatus) => {
+    trackEvent("member_form_opened", {
+      mode: "edit",
+      member_status: member.status,
+      discipline: member.discipline,
+    });
     setEditingMember(member);
     setFormOpen(true);
   };
 
   const handleAdd = () => {
+    trackEvent("member_form_opened", {
+      mode: "create",
+    });
     setEditingMember(null);
     setFormOpen(true);
   };
@@ -283,10 +292,26 @@ export function MembersTable({ members }: MembersTableProps) {
     try {
       if (id) {
         await updateMember(id, data);
+        trackEvent("member_saved", {
+          mode: "edit",
+          discipline: data.discipline,
+          currency: data.currency,
+          monthly_fee: data.monthly_fee,
+          has_phone: Boolean(data.phone.trim()),
+          has_description: Boolean(data.description.trim()),
+        });
         fireSuccessConfetti();
         toast.success("Membresía actualizada");
       } else {
         await addMember(data);
+        trackEvent("member_saved", {
+          mode: "create",
+          discipline: data.discipline,
+          currency: data.currency,
+          monthly_fee: data.monthly_fee,
+          has_phone: Boolean(data.phone.trim()),
+          has_description: Boolean(data.description.trim()),
+        });
         fireSuccessConfetti();
         toast.success("Miembro agregado");
       }
@@ -314,6 +339,11 @@ export function MembersTable({ members }: MembersTableProps) {
     setTogglingMemberId(memberToToggleActive.id);
     try {
       await setMemberActiveStatus(memberToToggleActive.id, willBeActive);
+      trackEvent("member_status_changed", {
+        previous_status: memberToToggleActive.status,
+        next_status: willBeActive ? "active" : "inactive",
+        discipline: memberToToggleActive.discipline,
+      });
       toast.success(
         willBeActive ? "Member marked as active" : "Member marked as inactive",
       );
@@ -332,6 +362,10 @@ export function MembersTable({ members }: MembersTableProps) {
     setHardDeletingMemberId(memberToToggleActive.id);
     try {
       await hardDeleteMember(memberToToggleActive.id);
+      trackEvent("member_deleted_permanently", {
+        previous_status: memberToToggleActive.status,
+        discipline: memberToToggleActive.discipline,
+      });
       toast.success("Member deleted permanently");
       setMemberToToggleActive(null);
       router.refresh();
@@ -347,6 +381,11 @@ export function MembersTable({ members }: MembersTableProps) {
     setRenewingMemberId(id);
     try {
       await renewMember(id);
+      const member = members.find((entry) => entry.id === id);
+      trackEvent("member_renewed", {
+        previous_status: member?.status,
+        discipline: member?.discipline,
+      });
       fireSuccessConfetti();
       toast.success("Membresía renovada (fecha fija mensual)");
       router.refresh();
@@ -369,6 +408,11 @@ export function MembersTable({ members }: MembersTableProps) {
     const encodedMessage = encodeURIComponent(prefilledMessage);
 
     setOpeningWhatsAppId(member.id);
+    trackEvent("member_whatsapp_opened", {
+      member_status: member.status,
+      discipline: member.discipline,
+      days_remaining: member.days_remaining,
+    });
     window.open(
       `https://wa.me/${formattedPhone}?text=${encodedMessage}`,
       "_blank",
@@ -490,7 +534,13 @@ export function MembersTable({ members }: MembersTableProps) {
             {isHydrated ? (
               <Select
                 value={disciplineFilter}
-                onValueChange={setDisciplineFilter}
+                onValueChange={(value) => {
+                  trackEvent("members_filter_changed", {
+                    filter: "discipline",
+                    value,
+                  });
+                  setDisciplineFilter(value);
+                }}
               >
                 <SelectTrigger className="w-full sm:w-[170px] lg:h-11 lg:text-base">
                   <SelectValue placeholder="All Disciplines" />
@@ -510,7 +560,16 @@ export function MembersTable({ members }: MembersTableProps) {
               <div className="h-10 w-full rounded-md border border-input bg-background sm:w-[170px] lg:h-11" />
             )}
             {isHydrated ? (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  trackEvent("members_filter_changed", {
+                    filter: "status",
+                    value,
+                  });
+                  setStatusFilter(value);
+                }}
+              >
                 <SelectTrigger className="w-full sm:w-[150px] lg:h-11 lg:text-base">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
@@ -774,7 +833,13 @@ export function MembersTable({ members }: MembersTableProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                onClick={() => {
+                  trackEvent("members_pagination_clicked", {
+                    direction: "previous",
+                    current_page: currentPage,
+                  });
+                  setCurrentPage((page) => Math.max(1, page - 1));
+                }}
                 disabled={currentPage === 1}
               >
                 Anterior
@@ -783,9 +848,13 @@ export function MembersTable({ members }: MembersTableProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  setCurrentPage((page) => Math.min(totalPages, page + 1))
-                }
+                onClick={() => {
+                  trackEvent("members_pagination_clicked", {
+                    direction: "next",
+                    current_page: currentPage,
+                  });
+                  setCurrentPage((page) => Math.min(totalPages, page + 1));
+                }}
                 disabled={currentPage === totalPages}
               >
                 Siguiente

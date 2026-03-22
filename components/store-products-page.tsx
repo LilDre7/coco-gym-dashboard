@@ -47,6 +47,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { fireSuccessConfetti } from "@/lib/confetti";
+import { trackEvent } from "@/lib/analytics";
 
 type ProductFormState = {
   name: string;
@@ -166,11 +167,19 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
   }
 
   function openCreateDialog() {
+    trackEvent("store_product_form_opened", {
+      mode: "create",
+    });
     resetForm();
     setDialogOpen(true);
   }
 
   function openEditDialog(product: StoreProductRow) {
+    trackEvent("store_product_form_opened", {
+      mode: "edit",
+      category: product.category,
+      is_active: product.is_active,
+    });
     setEditingProduct(product);
     setFormState({
       name: product.name,
@@ -199,6 +208,11 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
             category: formState.category.trim(),
             price,
           });
+          trackEvent("store_product_saved", {
+            mode: "edit",
+            category: formState.category.trim(),
+            price,
+          });
           setProducts((current) =>
             current.map((product) =>
               product.id === editingProduct.id
@@ -211,6 +225,11 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
         } else {
           await addStoreProduct({
             name,
+            category: formState.category.trim(),
+            price,
+          });
+          trackEvent("store_product_saved", {
+            mode: "create",
             category: formState.category.trim(),
             price,
           });
@@ -233,6 +252,10 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
     startTransition(async () => {
       try {
         await setStoreProductActiveStatus(product.id, !product.is_active);
+        trackEvent("store_product_status_changed", {
+          category: product.category,
+          next_status: product.is_active ? "inactive" : "active",
+        });
         setProducts((current) =>
           current.map((item) =>
             item.id === product.id ? { ...item, is_active: !item.is_active } : item
@@ -252,6 +275,10 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
     startTransition(async () => {
       try {
         await hardDeleteStoreProduct(productToDelete.id);
+        trackEvent("store_product_deleted_permanently", {
+          category: productToDelete.category,
+          was_active: productToDelete.is_active,
+        });
         setProducts((current) =>
           current.filter((product) => product.id !== productToDelete.id)
         );

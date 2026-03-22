@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -74,17 +75,19 @@ import {
   formatSelectedDate,
   getMonthlyAttendanceRanking,
 } from "@/lib/checkins";
-import { addCheckIn, addStoreProduct, deleteCheckIn, updateCheckIn } from "@/lib/actions";
+import { addCheckIn, deleteCheckIn, updateCheckIn } from "@/lib/actions";
 import {
   MemberWithStatus,
   StoreProductRow,
   disciplineLabels,
 } from "@/lib/types";
 import { formatPersonName, getFirstNameAndSurnameKey } from "@/lib/member-utils";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { fireSuccessConfetti } from "@/lib/confetti";
+import { trackEvent } from "@/lib/analytics";
 
 interface CheckInsDashboardProps {
   initialCheckIns: CheckIn[];
@@ -262,6 +265,7 @@ export function CheckInsDashboard({
   initialTime,
 }: CheckInsDashboardProps) {
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [checkIns, setCheckIns] = useState(initialCheckIns);
   const [products, setProducts] = useState(initialProducts);
   const [isPending, startTransition] = useTransition();
@@ -276,14 +280,13 @@ export function CheckInsDashboard({
   const [editingState, setEditingState] = useState<CheckInFormState | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [quickProductName, setQuickProductName] = useState("");
-  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [paymentError, setPaymentError] = useState(false);
   const [mobileStep, setMobileStep] = useState(1);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isSalesDetailOpen, setIsSalesDetailOpen] = useState(false);
+  const [matchedMemberPhotoUrl, setMatchedMemberPhotoUrl] = useState("");
 
   // ─── FIX: totalMobileSteps is now dynamic based on hasPurchase ────────────
   const totalMobileSteps = formState.hasPurchase ? 3 : 2;
@@ -376,6 +379,44 @@ export function CheckInsDashboard({
     };
   }, [checkIns, formState.name, matchedMember, selectedDate]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMatchedMemberPhoto() {
+      const photoUrl = matchedMember?.photo_url ?? "";
+
+      if (!photoUrl) {
+        setMatchedMemberPhotoUrl("");
+        return;
+      }
+
+      if (/^https?:\/\//i.test(photoUrl)) {
+        setMatchedMemberPhotoUrl(photoUrl);
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from("faces")
+        .createSignedUrl(photoUrl, 60 * 60);
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Failed to create signed photo URL for matched member:", error);
+        setMatchedMemberPhotoUrl("");
+        return;
+      }
+
+      setMatchedMemberPhotoUrl(data.signedUrl);
+    }
+
+    void loadMatchedMemberPhoto();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [matchedMember, supabase]);
+
   const memberNameSuggestions = useMemo(() => {
     const normalizedQuery = formatPersonName(formState.name).toLowerCase();
     const names = Array.from(
@@ -432,6 +473,15 @@ export function CheckInsDashboard({
       membersByNameKey.get(getFirstNameAndSurnameKey(normalizedName)) ??
       null
     );
+  }
+
+  function getInitials(name: string) {
+    return name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("");
   }
 
   const selectedProductsTotal = useMemo(
@@ -657,38 +707,9 @@ export function CheckInsDashboard({
   function resetForm() {
     setFormState(createInitialFormState(initialTime));
     setSelectedProducts([]);
-    setQuickProductName("");
     setPaymentError(false);
     setMobileStep(1);
     setShowNameSuggestions(false);
-  }
-
-  function handleQuickCreateProduct() {
-    const name = quickProductName.trim();
-    if (!name) return;
-
-    setIsCreatingProduct(true);
-    startTransition(async () => {
-      try {
-        const createdProduct = await addStoreProduct({
-          name,
-          category: "Otros",
-          price: 0,
-        });
-
-        setProducts((current) => [...current, createdProduct]);
-        addSelectedProduct(name);
-        setQuickProductName("");
-        fireSuccessConfetti();
-        toast.success("Producto creado");
-        router.refresh();
-      } catch (error) {
-        console.error("Failed to create store product:", error);
-        toast.error("No se pudo crear el producto");
-      } finally {
-        setIsCreatingProduct(false);
-      }
-    });
   }
 
   // ─── FIX: handleMobileNext now handles save when on last step ────────────
@@ -840,6 +861,16 @@ export function CheckInsDashboard({
           toPayload(editingState, formatLocalDateKey(original.datetime))
         );
 
+        trackEvent("checkin_updated", {
+          has_purchase: editingState.hasPurchase,
+          payment_method:
+            editingState.hasPurchase && editingState.paymentMethod !== "NONE"
+              ? editingState.paymentMethod
+              : "NONE",
+          product_count: parseStoredProductList(editingState.product).length,
+          selected_date: formatLocalDateKey(original.datetime),
+        });
+
         setCheckIns((current) =>
           current.map((checkIn) => {
             if (checkIn.id !== editingId) return checkIn;
@@ -885,6 +916,9 @@ export function CheckInsDashboard({
     startTransition(async () => {
       try {
         await deleteCheckIn(id);
+        trackEvent("checkin_deleted", {
+          selected_date: selectedDate,
+        });
         setCheckIns((current) => current.filter((checkIn) => checkIn.id !== id));
         if (editingId === id) {
           cancelEditing();
@@ -924,6 +958,14 @@ export function CheckInsDashboard({
           selectedDate
         );
         const createdCheckIn = await addCheckIn(payload);
+        trackEvent("checkin_added", {
+          has_purchase: payload.hasPurchase,
+          payment_method: payload.paymentMethod ?? "NONE",
+          product_count: selectedProducts.length,
+          amount: payload.amount ?? 0,
+          selected_date: selectedDate,
+          matched_member: Boolean(matchedMember),
+        });
         setCheckIns((current) => [...current, createdCheckIn]);
         setIsAddOpen(false);
         resetForm();
@@ -958,7 +1000,14 @@ export function CheckInsDashboard({
       iconShellClassName: "bg-primary/12 border border-primary/20",
       iconClassName: "text-primary",
       detailLabel: "Ver detalle",
-      onClick: () => setIsSalesDetailOpen(true),
+      onClick: () => {
+        trackEvent("checkin_sales_detail_opened", {
+          selected_date: selectedDate,
+          total_sold: metrics.totalSold,
+          sales_count: metrics.sales,
+        });
+        setIsSalesDetailOpen(true);
+      },
     },
     {
       title: shouldShowMonthlyLeaders
@@ -999,7 +1048,17 @@ export function CheckInsDashboard({
 
   return (
     <main className="mx-auto max-w-7xl space-y-5 px-4 py-8">
-      <Sheet open={isPriceSheetOpen} onOpenChange={setIsPriceSheetOpen}>
+      <Sheet
+        open={isPriceSheetOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            trackEvent("checkin_price_sheet_opened", {
+              product_groups: orderedProductGroups.length,
+            });
+          }
+          setIsPriceSheetOpen(open);
+        }}
+      >
         <SheetContent
           side="right"
           className="w-full overflow-y-auto border-border bg-card sm:max-w-md"
@@ -1055,7 +1114,16 @@ export function CheckInsDashboard({
                     Administrar tienda
                   </h3>
                 </div>
-                <Button type="button" variant="outline" onClick={() => router.push("/dashboard/store")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    trackEvent("checkin_store_redirect_clicked", {
+                      source: "price_sheet",
+                    });
+                    router.push("/dashboard/store");
+                  }}
+                >
                   Ir a tienda
                 </Button>
               </div>
@@ -1228,57 +1296,70 @@ export function CheckInsDashboard({
           <div className={cn("space-y-4", mobileStep === 1 ? "block" : "hidden")}>
             <div className="space-y-2">
               <Label htmlFor="checkin-name">Nombre *</Label>
-              <div className="relative">
-                <Input
-                  id="checkin-name"
-                  value={formState.name}
-                  onChange={(event) => {
-                    updateForm("name", event.target.value);
-                    setShowNameSuggestions(true);
-                  }}
-                  onFocus={() => setShowNameSuggestions(true)}
-                  onBlur={() => {
-                    setTimeout(() => setShowNameSuggestions(false), 120);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setShowNameSuggestions(false);
-                    }
-                    if (event.key === "Enter" && shouldShowNameSuggestions) {
-                      event.preventDefault();
-                      const firstSuggestion = memberNameSuggestions[0];
-                      if (firstSuggestion) {
-                        updateForm("name", firstSuggestion);
+              <div className="flex items-start gap-3">
+                {matchedMember ? (
+                  <Avatar className="mt-0.5 size-14 shrink-0 rounded-2xl border border-border">
+                    <AvatarImage
+                      src={matchedMemberPhotoUrl || undefined}
+                      alt={matchedMember.name}
+                    />
+                    <AvatarFallback className="rounded-2xl text-sm font-semibold">
+                      {getInitials(matchedMember.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : null}
+                <div className="relative min-w-0 flex-1">
+                  <Input
+                    id="checkin-name"
+                    value={formState.name}
+                    onChange={(event) => {
+                      updateForm("name", event.target.value);
+                      setShowNameSuggestions(true);
+                    }}
+                    onFocus={() => setShowNameSuggestions(true)}
+                    onBlur={() => {
+                      setTimeout(() => setShowNameSuggestions(false), 120);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
                         setShowNameSuggestions(false);
                       }
-                    }
-                  }}
-                  placeholder="Nombre de la persona"
-                  autoComplete="off"
-                  required
-                  className="bg-background border-border"
-                />
-                {shouldShowNameSuggestions ? (
-                  <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-background shadow-md">
-                    <ul className="max-h-48 overflow-y-auto py-1">
-                      {memberNameSuggestions.map((name) => (
-                        <li key={name}>
-                          <button
-                            type="button"
-                            className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/60"
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              updateForm("name", name);
-                              setShowNameSuggestions(false);
-                            }}
-                          >
-                            {name}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                      if (event.key === "Enter" && shouldShowNameSuggestions) {
+                        event.preventDefault();
+                        const firstSuggestion = memberNameSuggestions[0];
+                        if (firstSuggestion) {
+                          updateForm("name", firstSuggestion);
+                          setShowNameSuggestions(false);
+                        }
+                      }
+                    }}
+                    placeholder="Nombre de la persona"
+                    autoComplete="off"
+                    required
+                    className="border-border bg-background"
+                  />
+                  {shouldShowNameSuggestions ? (
+                    <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-background shadow-md">
+                      <ul className="max-h-48 overflow-y-auto py-1">
+                        {memberNameSuggestions.map((name) => (
+                          <li key={name}>
+                            <button
+                              type="button"
+                              className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/60"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                updateForm("name", name);
+                                setShowNameSuggestions(false);
+                              }}
+                            >
+                              {name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
               </div>
               {matchedMember ? (
                 <div className="rounded-xl border border-border bg-card/70 px-3 py-2">
@@ -1413,7 +1494,12 @@ export function CheckInsDashboard({
                         size="sm"
                         variant="outline"
                         className="rounded-lg"
-                        onClick={() => router.push("/dashboard/store")}
+                        onClick={() => {
+                          trackEvent("checkin_store_redirect_clicked", {
+                            source: "add_dialog",
+                          });
+                          router.push("/dashboard/store");
+                        }}
                       >
                         Abrir tienda
                       </Button>
@@ -1445,28 +1531,6 @@ export function CheckInsDashboard({
                     </SelectContent>
                   </Select>
                 )}
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <Input
-                      value={quickProductName}
-                      onChange={(event) => setQuickProductName(event.target.value)}
-                      placeholder="Nuevo producto"
-                      className="h-11 rounded-xl border-border bg-background shadow-none"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 rounded-xl px-5 shadow-none"
-                      onClick={handleQuickCreateProduct}
-                      disabled={isCreatingProduct || !quickProductName.trim()}
-                    >
-                      Crear
-                    </Button>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    Se guarda en la base de datos y puedes ajustar el precio en la lista.
-                  </span>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -1585,7 +1649,16 @@ export function CheckInsDashboard({
               variant="ghost"
               size="icon-sm"
               className="rounded-full text-foreground hover:bg-accent/70"
-              onClick={() => setSelectedDate((current) => shiftDateKey(current, -1))}
+              onClick={() =>
+                setSelectedDate((current) => {
+                  const nextDate = shiftDateKey(current, -1);
+                  trackEvent("checkin_date_changed", {
+                    direction: "previous",
+                    selected_date: nextDate,
+                  });
+                  return nextDate;
+                })
+              }
             >
               <ChevronLeft className="h-[18px] w-[18px]" />
             </Button>
@@ -1614,7 +1687,12 @@ export function CheckInsDashboard({
                     selected={dateKeyToDate(selectedDate)}
                     onSelect={(date) => {
                       if (!date) return;
-                      setSelectedDate(formatLocalDateKey(date));
+                      const nextDate = formatLocalDateKey(date);
+                      trackEvent("checkin_date_changed", {
+                        source: "calendar",
+                        selected_date: nextDate,
+                      });
+                      setSelectedDate(nextDate);
                       setCalendarOpen(false);
                     }}
                     className="mx-auto rounded-xl text-sm [--cell-size:2rem]"
@@ -1639,6 +1717,10 @@ export function CheckInsDashboard({
                       variant="outline"
                       className="h-9 flex-1 rounded-xl"
                       onClick={() => {
+                        trackEvent("checkin_date_changed", {
+                          source: "jump",
+                          selected_date: initialDateKey,
+                        });
                         setSelectedDate(initialDateKey);
                         setCalendarOpen(false);
                       }}
@@ -1650,7 +1732,12 @@ export function CheckInsDashboard({
                       variant="outline"
                       className="h-9 flex-1 rounded-xl"
                       onClick={() => {
-                        setSelectedDate(shiftDateKey(initialDateKey, -1));
+                        const nextDate = shiftDateKey(initialDateKey, -1);
+                        trackEvent("checkin_date_changed", {
+                          source: "jump",
+                          selected_date: nextDate,
+                        });
+                        setSelectedDate(nextDate);
                         setCalendarOpen(false);
                       }}
                     >
@@ -1679,7 +1766,16 @@ export function CheckInsDashboard({
               variant="ghost"
               size="icon-sm"
               className="rounded-full text-foreground hover:bg-accent/70"
-              onClick={() => setSelectedDate((current) => shiftDateKey(current, 1))}
+              onClick={() =>
+                setSelectedDate((current) => {
+                  const nextDate = shiftDateKey(current, 1);
+                  trackEvent("checkin_date_changed", {
+                    direction: "next",
+                    selected_date: nextDate,
+                  });
+                  return nextDate;
+                })
+              }
             >
               <ChevronRight className="h-[18px] w-[18px]" />
             </Button>
@@ -1688,7 +1784,13 @@ export function CheckInsDashboard({
             type="button"
             variant="outline"
             className="h-10 w-full rounded-2xl border-border bg-background text-foreground sm:w-auto"
-            onClick={() => setSelectedDate(initialDateKey)}
+            onClick={() => {
+              trackEvent("checkin_date_changed", {
+                source: "today",
+                selected_date: initialDateKey,
+              });
+              setSelectedDate(initialDateKey);
+            }}
           >
             Ir a hoy
           </Button>
