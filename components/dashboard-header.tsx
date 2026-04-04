@@ -123,6 +123,7 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
               width={34}
               height={34}
               className="rounded-full"
+              loading="lazy"
             />
             <span
               className={cn(
@@ -257,6 +258,7 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
               width={30}
               height={30}
               className="rounded-full"
+              loading="lazy"
             />
             <span className="text-base font-semibold text-foreground">Coco Gym</span>
           </div>

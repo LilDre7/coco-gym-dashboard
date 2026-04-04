@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -143,6 +143,259 @@ const disciplineConfig: Record<Discipline, { className: string }> = {
   },
 };
 
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+type MemberTableRowProps = {
+  member: MemberWithStatus;
+  photoSrc: string;
+  onOpenPhoto: (id: string) => void;
+  onEdit: (id: string) => void;
+  onRenew: (id: string) => void;
+  onWhatsApp: (id: string) => void;
+  onOpenPhone: (id: string) => void;
+  onOpenNote: (id: string) => void;
+  onManageStatus: (id: string) => void;
+  isRenewing: boolean;
+  isOpeningWhatsApp: boolean;
+  isHydrated: boolean;
+};
+
+const MemberTableRow = memo(function MemberTableRow({
+  member,
+  photoSrc,
+  onOpenPhoto,
+  onEdit,
+  onRenew,
+  onWhatsApp,
+  onOpenPhone,
+  onOpenNote,
+  onManageStatus,
+  isRenewing,
+  isOpeningWhatsApp,
+  isHydrated,
+}: MemberTableRowProps) {
+  const config = statusConfig[member.status];
+
+  const handlePhotoClick = useCallback(() => {
+    onOpenPhoto(member.id);
+  }, [member.id, onOpenPhoto]);
+
+  const handlePhoneClick = useCallback(() => {
+    onOpenPhone(member.id);
+  }, [member.id, onOpenPhone]);
+
+  const handleNoteClick = useCallback(() => {
+    onOpenNote(member.id);
+  }, [member.id, onOpenNote]);
+
+  const handleRenewClick = useCallback(() => {
+    onRenew(member.id);
+  }, [member.id, onRenew]);
+
+  const handleWhatsAppClick = useCallback(() => {
+    onWhatsApp(member.id);
+  }, [member.id, onWhatsApp]);
+
+  const handleEditClick = useCallback(() => {
+    onEdit(member.id);
+  }, [member.id, onEdit]);
+
+  const handleManageStatusClick = useCallback(() => {
+    onManageStatus(member.id);
+  }, [member.id, onManageStatus]);
+
+  return (
+    <TableRow
+      className={`${config.rowClassName} transition-all duration-200`}
+    >
+      <TableCell className="font-medium lg:text-[1.05rem]">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handlePhotoClick}
+            className="rounded-full transition-transform duration-200 ease-out hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title="View photo"
+          >
+            <Avatar className="size-8 lg:size-10">
+              <AvatarImage
+                src={photoSrc || undefined}
+                alt={member.name}
+              />
+              <AvatarFallback className="text-xs font-semibold lg:text-sm">
+                {getInitials(member.name)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+          <span
+            className="block max-w-[180px] truncate sm:max-w-[230px] lg:max-w-[280px]"
+            title={member.name}
+          >
+            {member.name}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="hidden sm:table-cell">
+        <Badge
+          variant="outline"
+          className={`${disciplineConfig[member.discipline].className} lg:px-3 lg:py-1 lg:text-sm`}
+        >
+          {disciplineLabels[member.discipline]}
+        </Badge>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        {formatCurrency(member.monthly_fee, member.currency)}
+      </TableCell>
+      <TableCell className="hidden lg:table-cell">
+        {formatDate(member.end_date)}
+      </TableCell>
+      <TableCell>
+        <span
+          className={
+            member.days_remaining < 0
+              ? "font-medium text-destructive"
+              : member.days_remaining <= EXPIRING_THRESHOLD_DAYS
+                ? "font-medium text-amber-600"
+                : "text-foreground"
+          }
+        >
+          {member.days_remaining < 0 ? (
+            <span className="inline-flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {`${Math.abs(member.days_remaining)}d overdue`}
+            </span>
+          ) : (
+            `${member.days_remaining}d`
+          )}
+        </span>
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant="outline"
+          className={`${config.className} lg:px-3 lg:py-1 lg:text-sm`}
+        >
+          {member.status === "expired" && (
+            <AlertTriangle className="h-3.5 w-3.5" />
+          )}
+          {config.label}
+        </Badge>
+      </TableCell>
+      <TableCell className="hidden lg:table-cell">
+        {member.status === "active"
+          ? formatTenure(member.tenure_days)
+          : "\u2014"}
+      </TableCell>
+      <TableCell className="hidden xl:table-cell">
+        {member.phone?.trim() ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+            onClick={handlePhoneClick}
+          >
+            Ver telefono
+          </Button>
+        ) : (
+          "\u2014"
+        )}
+      </TableCell>
+      <TableCell className="hidden 2xl:table-cell">
+        {member.description?.trim() ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+            onClick={handleNoteClick}
+          >
+            Ver nota
+          </Button>
+        ) : (
+          "\u2014"
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-1 lg:gap-2">
+          {(member.status === "expiring" ||
+            member.status === "expired" ||
+            member.status === "inactive") && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
+              onClick={handleRenewClick}
+              disabled={isRenewing}
+              title="Renew membership (fixed monthly date)"
+            >
+              {isRenewing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : member.status === "inactive" ? (
+                "Reactivar"
+              ) : (
+                "Renovar"
+              )}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
+            onClick={handleWhatsAppClick}
+            title="WhatsApp"
+          >
+            {isOpeningWhatsApp ? (
+              <Loader2 className="h-4 w-4 animate-spin text-primary lg:h-5 lg:w-5" />
+            ) : (
+              <MessageCircle className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
+            )}
+          </Button>
+          {isHydrated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
+                  title="More actions"
+                >
+                  <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={handleEditClick}>
+                  <Pencil className="h-4 w-4" />
+                  Edit member
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleManageStatusClick}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                  Manage status
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="transition-all duration-200 ease-out lg:size-9"
+              title="More actions"
+              disabled
+            >
+              <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
 export function MembersTable({ members }: MembersTableProps) {
   const PAGE_SIZE = 20;
   const router = useRouter();
@@ -174,8 +427,23 @@ export function MembersTable({ members }: MembersTableProps) {
   const [signedPhotoUrls, setSignedPhotoUrls] = useState<
     Record<string, string>
   >({});
+  const signedPhotoUrlsRef = useRef<Record<string, string>>({});
   const [isHydrated, setIsHydrated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const memberPhotoPathsKey = useMemo(() => {
+    const paths = Array.from(
+      new Set(
+        members
+          .map((member) => member.photo_url)
+          .filter(
+            (value): value is string =>
+              Boolean(value) && !/^https?:\/\//i.test(value),
+          ),
+      ),
+    ).sort();
+    return JSON.stringify(paths);
+  }, [members]);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -183,44 +451,59 @@ export function MembersTable({ members }: MembersTableProps) {
 
   useEffect(() => {
     let isMounted = true;
+
     async function hydrateSignedUrls() {
-      const storagePaths = Array.from(
-        new Set(
-          members
-            .map((member) => member.photo_url)
-            .filter((value) => value && !/^https?:\/\//i.test(value)),
-        ),
-      );
+      const storagePaths: string[] = memberPhotoPathsKey
+        ? (JSON.parse(memberPhotoPathsKey) as string[])
+        : [];
 
       if (storagePaths.length === 0) {
-        setSignedPhotoUrls({});
+        signedPhotoUrlsRef.current = {};
+        if (isMounted) setSignedPhotoUrls({});
+        return;
+      }
+
+      const prev = signedPhotoUrlsRef.current;
+      const next: Record<string, string> = {};
+      for (const p of storagePaths) {
+        if (prev[p]) next[p] = prev[p];
+      }
+      const missing = storagePaths.filter((p) => !next[p]);
+
+      if (missing.length === 0) {
+        signedPhotoUrlsRef.current = next;
+        if (isMounted) setSignedPhotoUrls(next);
         return;
       }
 
       const { data, error } = await supabase.storage
         .from("faces")
-        .createSignedUrls(storagePaths, 60 * 60);
+        .createSignedUrls(missing, 60 * 60);
 
       if (!isMounted) return;
+
       if (error) {
         console.error("Failed to create signed URLs for member photos:", error);
+        signedPhotoUrlsRef.current = next;
+        setSignedPhotoUrls(next);
         return;
       }
 
-      const nextMap: Record<string, string> = {};
-      for (const item of data) {
+      for (const item of data ?? []) {
         if (item.path && item.signedUrl) {
-          nextMap[item.path] = item.signedUrl;
+          next[item.path] = item.signedUrl;
         }
       }
-      setSignedPhotoUrls(nextMap);
+      signedPhotoUrlsRef.current = next;
+      setSignedPhotoUrls(next);
     }
 
     void hydrateSignedUrls();
+
     return () => {
       isMounted = false;
     };
-  }, [members, supabase]);
+  }, [memberPhotoPathsKey, supabase]);
 
   const totals = {
     total: members.length,
@@ -256,15 +539,50 @@ export function MembersTable({ members }: MembersTableProps) {
     pageStart + PAGE_SIZE,
   );
 
-  const handleEdit = (member: MemberWithStatus) => {
+  const paginatedMembersRef = useRef(paginatedMembers);
+  paginatedMembersRef.current = paginatedMembers;
+
+  const membersRef = useRef(members);
+  membersRef.current = members;
+
+  const handleEditById = useCallback((id: string) => {
+    const row = paginatedMembersRef.current.find((m) => m.id === id);
+    if (!row) return;
     trackEvent("member_form_opened", {
       mode: "edit",
-      member_status: member.status,
-      discipline: member.discipline,
+      member_status: row.status,
+      discipline: row.discipline,
     });
-    setEditingMember(member);
+    setEditingMember(row);
     setFormOpen(true);
-  };
+  }, []);
+
+  const handleOpenPhotoById = useCallback((id: string) => {
+    const row = paginatedMembersRef.current.find((m) => m.id === id);
+    if (!row) return;
+    setSelectedMember(row);
+    setPhotoOpen(true);
+  }, []);
+
+  const handleOpenNoteById = useCallback((id: string) => {
+    const row = paginatedMembersRef.current.find((m) => m.id === id);
+    if (!row || !row.description?.trim()) return;
+    setNoteMember(row);
+    setNoteOpen(true);
+  }, []);
+
+  const handleOpenPhoneById = useCallback((id: string) => {
+    const row = paginatedMembersRef.current.find((m) => m.id === id);
+    if (!row || !row.phone?.trim()) return;
+    setPhoneMember(row);
+    setPhoneOpen(true);
+  }, []);
+
+  const handleManageStatusById = useCallback((id: string) => {
+    const row = paginatedMembersRef.current.find((m) => m.id === id);
+    if (!row) return;
+    setMemberToToggleActive(row);
+  }, []);
 
   const handleAdd = () => {
     trackEvent("member_form_opened", {
@@ -377,27 +695,32 @@ export function MembersTable({ members }: MembersTableProps) {
     }
   };
 
-  const handleRenew = async (id: string) => {
-    setRenewingMemberId(id);
-    try {
-      await renewMember(id);
-      const member = members.find((entry) => entry.id === id);
-      trackEvent("member_renewed", {
-        previous_status: member?.status,
-        discipline: member?.discipline,
-      });
-      fireSuccessConfetti();
-      toast.success("Membresía renovada (fecha fija mensual)");
-      router.refresh();
-    } catch (err) {
-      console.error("Failed to renew member:", err);
-      toast.error("No se pudo renovar la membresía");
-    } finally {
-      setRenewingMemberId(null);
-    }
-  };
+  const handleRenewById = useCallback(
+    async (id: string) => {
+      setRenewingMemberId(id);
+      try {
+        await renewMember(id);
+        const member = membersRef.current.find((entry) => entry.id === id);
+        trackEvent("member_renewed", {
+          previous_status: member?.status,
+          discipline: member?.discipline,
+        });
+        fireSuccessConfetti();
+        toast.success("Membresía renovada (fecha fija mensual)");
+        router.refresh();
+      } catch (err) {
+        console.error("Failed to renew member:", err);
+        toast.error("No se pudo renovar la membresía");
+      } finally {
+        setRenewingMemberId(null);
+      }
+    },
+    [router],
+  );
 
-  const handleWhatsApp = (member: MemberWithStatus) => {
+  const handleWhatsAppById = useCallback((id: string) => {
+    const member = paginatedMembersRef.current.find((m) => m.id === id);
+    if (!member) return;
     const formattedPhone = formatPhoneForWhatsApp(member.phone);
     if (!formattedPhone) {
       toast.error("Número inválido para WhatsApp");
@@ -427,32 +750,7 @@ export function MembersTable({ members }: MembersTableProps) {
         ),
       400,
     );
-  };
-
-  const getInitials = (name: string) =>
-    name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("");
-
-  const handleOpenPhoto = (member: MemberWithStatus) => {
-    setSelectedMember(member);
-    setPhotoOpen(true);
-  };
-
-  const handleOpenNote = (member: MemberWithStatus) => {
-    if (!member.description?.trim()) return;
-    setNoteMember(member);
-    setNoteOpen(true);
-  };
-
-  const handleOpenPhone = (member: MemberWithStatus) => {
-    if (!member.phone?.trim()) return;
-    setPhoneMember(member);
-    setPhoneOpen(true);
-  };
+  }, []);
 
   const resolvePhotoUrl = (photoValue: string) => {
     if (!photoValue) return "";
@@ -626,201 +924,23 @@ export function MembersTable({ members }: MembersTableProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedMembers.map((member) => {
-                  const config = statusConfig[member.status];
-                  return (
-                    <TableRow
-                      key={member.id}
-                      className={`${config.rowClassName} transition-all duration-200`}
-                    >
-                      <TableCell className="font-medium lg:text-[1.05rem]">
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPhoto(member)}
-                            className="rounded-full transition-transform duration-200 ease-out hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            title="View photo"
-                          >
-                            <Avatar className="size-8 lg:size-10">
-                              <AvatarImage
-                                src={
-                                  resolvePhotoUrl(member.photo_url) || undefined
-                                }
-                                alt={member.name}
-                              />
-                              <AvatarFallback className="text-xs font-semibold lg:text-sm">
-                                {getInitials(member.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </button>
-                          <span
-                            className="block max-w-[180px] truncate sm:max-w-[230px] lg:max-w-[280px]"
-                            title={member.name}
-                          >
-                            {member.name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <Badge
-                          variant="outline"
-                          className={`${disciplineConfig[member.discipline].className} lg:px-3 lg:py-1 lg:text-sm`}
-                        >
-                          {disciplineLabels[member.discipline]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {formatCurrency(member.monthly_fee, member.currency)}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {formatDate(member.end_date)}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={
-                            member.days_remaining < 0
-                              ? "font-medium text-destructive"
-                              : member.days_remaining <= EXPIRING_THRESHOLD_DAYS
-                                ? "font-medium text-amber-600"
-                                : "text-foreground"
-                          }
-                        >
-                          {member.days_remaining < 0 ? (
-                            <span className="inline-flex items-center gap-1">
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                              {`${Math.abs(member.days_remaining)}d overdue`}
-                            </span>
-                          ) : (
-                            `${member.days_remaining}d`
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`${config.className} lg:px-3 lg:py-1 lg:text-sm`}
-                        >
-                          {member.status === "expired" && (
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                          )}
-                          {config.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {member.status === "active"
-                          ? formatTenure(member.tenure_days)
-                          : "\u2014"}
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        {member.phone?.trim() ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2"
-                            onClick={() => handleOpenPhone(member)}
-                          >
-                            Ver telefono
-                          </Button>
-                        ) : (
-                          "\u2014"
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden 2xl:table-cell">
-                        {member.description?.trim() ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2"
-                            onClick={() => handleOpenNote(member)}
-                          >
-                            Ver nota
-                          </Button>
-                        ) : (
-                          "\u2014"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-1 lg:gap-2">
-                          {(member.status === "expiring" ||
-                            member.status === "expired" ||
-                            member.status === "inactive") && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
-                              onClick={() => handleRenew(member.id)}
-                              disabled={renewingMemberId === member.id}
-                              title="Renew membership (fixed monthly date)"
-                            >
-                              {renewingMemberId === member.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : member.status === "inactive" ? (
-                                "Reactivar"
-                              ) : (
-                                "Renovar"
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
-                            onClick={() => handleWhatsApp(member)}
-                            title="WhatsApp"
-                          >
-                            {openingWhatsAppId === member.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-primary lg:h-5 lg:w-5" />
-                            ) : (
-                              <MessageCircle className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
-                            )}
-                          </Button>
-                          {isHydrated ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
-                                  title="More actions"
-                                >
-                                  <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-44">
-                                <DropdownMenuItem
-                                  onClick={() => handleEdit(member)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                  Edit member
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    setMemberToToggleActive(member)
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                  Manage status
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="transition-all duration-200 ease-out lg:size-9"
-                              title="More actions"
-                              disabled
-                            >
-                              <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                paginatedMembers.map((member) => (
+                  <MemberTableRow
+                    key={member.id}
+                    member={member}
+                    photoSrc={resolvePhotoUrl(member.photo_url)}
+                    onOpenPhoto={handleOpenPhotoById}
+                    onEdit={handleEditById}
+                    onRenew={handleRenewById}
+                    onWhatsApp={handleWhatsAppById}
+                    onOpenPhone={handleOpenPhoneById}
+                    onOpenNote={handleOpenNoteById}
+                    onManageStatus={handleManageStatusById}
+                    isRenewing={renewingMemberId === member.id}
+                    isOpeningWhatsApp={openingWhatsAppId === member.id}
+                    isHydrated={isHydrated}
+                  />
+                ))
               )}
             </TableBody>
           </Table>

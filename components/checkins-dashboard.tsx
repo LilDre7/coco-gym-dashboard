@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -90,11 +90,13 @@ import { fireSuccessConfetti } from "@/lib/confetti";
 import { trackEvent } from "@/lib/analytics";
 
 interface CheckInsDashboardProps {
-  initialCheckIns: CheckIn[];
+  initialCheckIns?: CheckIn[];
   initialProducts: StoreProductRow[];
   initialMembers: MemberWithStatus[];
   initialDateKey: string;
   initialTime: string;
+  checkIns?: CheckIn[];
+  setCheckIns?: React.Dispatch<React.SetStateAction<CheckIn[]>>;
 }
 
 type PaymentMethodValue = "TARJETA" | "EFECTIVO" | "SINPE" | "NONE";
@@ -149,6 +151,22 @@ function createInitialFormState(initialTime: string): CheckInFormState {
     amount: "",
     notes: "",
   };
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedValue(value);
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [delayMs, value]);
+
+  return debouncedValue;
 }
 
 function Pill({
@@ -258,15 +276,19 @@ function getMobileStepTitle(step: number, hasPurchase: boolean) {
 }
 
 export function CheckInsDashboard({
-  initialCheckIns,
+  initialCheckIns = [],
   initialProducts,
   initialMembers,
   initialDateKey,
   initialTime,
+  checkIns: controlledCheckIns,
+  setCheckIns: controlledSetCheckIns,
 }: CheckInsDashboardProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const [checkIns, setCheckIns] = useState(initialCheckIns);
+  const [localCheckIns, setLocalCheckIns] = useState(initialCheckIns);
+  const checkIns = controlledCheckIns ?? localCheckIns;
+  const setCheckIns = controlledSetCheckIns ?? setLocalCheckIns;
   const [products, setProducts] = useState(initialProducts);
   const [isPending, startTransition] = useTransition();
   const [selectedDate, setSelectedDate] = useState(initialDateKey);
@@ -379,19 +401,56 @@ export function CheckInsDashboard({
     };
   }, [checkIns, formState.name, matchedMember, selectedDate]);
 
+  const matchedMemberPhotoPath = matchedMember?.photo_url ?? "";
+  const debouncedMatchedMemberPhotoPath = useDebouncedValue(
+    matchedMemberPhotoPath,
+    300
+  );
+  const matchedMemberPhotoCacheRef = useRef<{
+    path: string;
+    url: string;
+  } | null>(null);
+  const matchedMemberPhotoPathRef = useRef(matchedMemberPhotoPath);
+
+  matchedMemberPhotoPathRef.current = matchedMemberPhotoPath;
+
+  useEffect(() => {
+    const photoUrl = matchedMemberPhotoPath;
+
+    if (!photoUrl) {
+      setMatchedMemberPhotoUrl("");
+      return;
+    }
+
+    if (/^https?:\/\//i.test(photoUrl)) {
+      setMatchedMemberPhotoUrl(photoUrl);
+      return;
+    }
+
+    const cached = matchedMemberPhotoCacheRef.current;
+    if (cached && cached.path === photoUrl) {
+      setMatchedMemberPhotoUrl(cached.url);
+      return;
+    }
+
+    setMatchedMemberPhotoUrl("");
+  }, [matchedMemberPhotoPath]);
+
   useEffect(() => {
     let isMounted = true;
 
     async function loadMatchedMemberPhoto() {
-      const photoUrl = matchedMember?.photo_url ?? "";
+      const photoUrl = debouncedMatchedMemberPhotoPath;
 
-      if (!photoUrl) {
-        setMatchedMemberPhotoUrl("");
+      if (!photoUrl || /^https?:\/\//i.test(photoUrl)) {
         return;
       }
 
-      if (/^https?:\/\//i.test(photoUrl)) {
-        setMatchedMemberPhotoUrl(photoUrl);
+      const cached = matchedMemberPhotoCacheRef.current;
+      if (cached && cached.path === photoUrl) {
+        if (matchedMemberPhotoPathRef.current === photoUrl) {
+          setMatchedMemberPhotoUrl(cached.url);
+        }
         return;
       }
 
@@ -399,7 +458,7 @@ export function CheckInsDashboard({
         .from("faces")
         .createSignedUrl(photoUrl, 60 * 60);
 
-      if (!isMounted) return;
+      if (!isMounted || matchedMemberPhotoPathRef.current !== photoUrl) return;
 
       if (error) {
         console.error("Failed to create signed photo URL for matched member:", error);
@@ -407,6 +466,10 @@ export function CheckInsDashboard({
         return;
       }
 
+      matchedMemberPhotoCacheRef.current = {
+        path: photoUrl,
+        url: data.signedUrl,
+      };
       setMatchedMemberPhotoUrl(data.signedUrl);
     }
 
@@ -415,7 +478,7 @@ export function CheckInsDashboard({
     return () => {
       isMounted = false;
     };
-  }, [matchedMember, supabase]);
+  }, [debouncedMatchedMemberPhotoPath, supabase]);
 
   const memberNameSuggestions = useMemo(() => {
     const normalizedQuery = formatPersonName(formState.name).toLowerCase();

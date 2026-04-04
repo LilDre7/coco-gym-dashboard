@@ -112,6 +112,7 @@ export function LoginForm() {
               width={72}
               height={72}
               className="rounded-full"
+              loading="lazy"
             />
           </div>
           <div className="text-center">
@@ -150,6 +151,7 @@ export function LoginForm() {
             width={72}
             height={72}
             className="rounded-full"
+            loading="lazy"
           />
         </div>
         <div className="text-center">

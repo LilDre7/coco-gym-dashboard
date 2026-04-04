@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Camera, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateInputValue, formatPersonName } from "@/lib/member-utils";
+import { compressImageFileForUpload } from "@/lib/image-compress";
 
 interface MemberFormProps {
   open: boolean;
@@ -75,6 +76,9 @@ export function MemberForm({
   const [isRateLoading, setIsRateLoading] = useState(false);
   const [step, setStep] = useState(1);
   const supabase = useMemo(() => createClient(), []);
+  const photoPreviewCacheRef = useRef<{ path: string; url: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     setStep(1);
@@ -113,6 +117,11 @@ export function MemberForm({
         setPhotoPreviewUrl(photoUrl);
         return;
       }
+      const cached = photoPreviewCacheRef.current;
+      if (cached && cached.path === photoUrl) {
+        setPhotoPreviewUrl(cached.url);
+        return;
+      }
       const { data, error } = await supabase.storage
         .from("faces")
         .createSignedUrl(photoUrl, 60 * 60);
@@ -122,6 +131,7 @@ export function MemberForm({
         setPhotoPreviewUrl("");
         return;
       }
+      photoPreviewCacheRef.current = { path: photoUrl, url: data.signedUrl };
       setPhotoPreviewUrl(data.signedUrl);
     }
     void loadPreview();
@@ -212,6 +222,7 @@ export function MemberForm({
       if (userError) throw userError;
       if (!user) throw new Error("No authenticated user");
 
+      const compressedBlob = await compressImageFileForUpload(file);
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
       const oldPath =
@@ -219,9 +230,9 @@ export function MemberForm({
 
       const { error: uploadError } = await supabase.storage
         .from("faces")
-        .upload(filePath, file, {
+        .upload(filePath, compressedBlob, {
           upsert: true,
-          contentType: file.type,
+          contentType: "image/jpeg",
         });
       if (uploadError) throw uploadError;
 
