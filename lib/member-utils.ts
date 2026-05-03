@@ -1,6 +1,6 @@
 import { MemberRow, MemberWithStatus, MemberStatus, Currency } from "./types";
 
-export const EXPIRING_THRESHOLD_DAYS = 3;
+export const EXPIRING_THRESHOLD_DAYS = 4;
 
 export function formatPersonName(value: string): string {
   return value

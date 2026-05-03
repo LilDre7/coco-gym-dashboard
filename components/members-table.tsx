@@ -58,7 +58,6 @@ import {
   formatCurrency,
   formatDate,
   formatPhoneForWhatsApp,
-  formatTenure,
 } from "@/lib/member-utils";
 import {
   addMember,
@@ -89,6 +88,12 @@ import { trackEvent } from "@/lib/analytics";
 interface MembersTableProps {
   members: MemberWithStatus[];
 }
+
+type MemberSortOption =
+  | "newest"
+  | "oldest"
+  | "name-asc"
+  | "name-desc";
 
 const statusConfig: Record<
   MemberStatus,
@@ -286,11 +291,6 @@ const MemberTableRow = memo(function MemberTableRow({
           {config.label}
         </Badge>
       </TableCell>
-      <TableCell className="hidden lg:table-cell">
-        {member.status === "active"
-          ? formatTenure(member.tenure_days)
-          : "\u2014"}
-      </TableCell>
       <TableCell className="hidden xl:table-cell">
         {member.phone?.trim() ? (
           <Button
@@ -403,6 +403,7 @@ export function MembersTable({ members }: MembersTableProps) {
   const [nameFilter, setNameFilter] = useState("");
   const [disciplineFilter, setDisciplineFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortOption, setSortOption] = useState<MemberSortOption>("newest");
   const [formOpen, setFormOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -528,13 +529,40 @@ export function MembersTable({ members }: MembersTableProps) {
     return nameMatch && disciplineMatch && statusMatch;
   });
 
+  const sortedMembers = useMemo(() => {
+    const items = [...filteredMembers];
+
+    if (sortOption === "name-asc") {
+      return items.sort((a, b) =>
+        a.name.localeCompare(b.name, "es", { sensitivity: "base" }),
+      );
+    }
+
+    if (sortOption === "name-desc") {
+      return items.sort((a, b) =>
+        b.name.localeCompare(a.name, "es", { sensitivity: "base" }),
+      );
+    }
+
+    return items.sort((a, b) => {
+      const timeA = Date.parse(a.created_at || "");
+      const timeB = Date.parse(b.created_at || "");
+      const safeTimeA = Number.isFinite(timeA) ? timeA : 0;
+      const safeTimeB = Number.isFinite(timeB) ? timeB : 0;
+
+      return sortOption === "oldest"
+        ? safeTimeA - safeTimeB
+        : safeTimeB - safeTimeA;
+    });
+  }, [filteredMembers, sortOption]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [nameFilter, disciplineFilter, statusFilter]);
+  }, [nameFilter, disciplineFilter, statusFilter, sortOption]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sortedMembers.length / PAGE_SIZE));
   const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const paginatedMembers = filteredMembers.slice(
+  const paginatedMembers = sortedMembers.slice(
     pageStart,
     pageStart + PAGE_SIZE,
   );
@@ -831,6 +859,30 @@ export function MembersTable({ members }: MembersTableProps) {
             />
             {isHydrated ? (
               <Select
+                value={sortOption}
+                onValueChange={(value) => {
+                  trackEvent("members_filter_changed", {
+                    filter: "sort",
+                    value,
+                  });
+                  setSortOption(value as MemberSortOption);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[190px] lg:h-11 lg:text-base">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest to Oldest</SelectItem>
+                  <SelectItem value="oldest">Oldest to Newest</SelectItem>
+                  <SelectItem value="name-asc">Name A-Z</SelectItem>
+                  <SelectItem value="name-desc">Name Z-A</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="h-10 w-full rounded-md border border-input bg-background sm:w-[190px] lg:h-11" />
+            )}
+            {isHydrated ? (
+              <Select
                 value={disciplineFilter}
                 onValueChange={(value) => {
                   trackEvent("members_filter_changed", {
@@ -905,9 +957,6 @@ export function MembersTable({ members }: MembersTableProps) {
                 <TableHead className="hidden lg:table-cell">Expires</TableHead>
                 <TableHead>Days Left</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden lg:table-cell">
-                  Time in Gym
-                </TableHead>
                 <TableHead className="hidden xl:table-cell">Phone</TableHead>
                 <TableHead className="hidden 2xl:table-cell">Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -917,7 +966,7 @@ export function MembersTable({ members }: MembersTableProps) {
               {filteredMembers.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={10}
+                    colSpan={9}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No members found
