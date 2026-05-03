@@ -1,2242 +1,2338 @@
-"use client";
+  "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  Clock3,
-  Droplets,
-  Dumbbell,
-  LogIn,
-  Trash2,
-  Package,
-  Pencil,
-  Plus,
-  Search,
-  ShoppingBag,
-  Trophy,
-  User,
-  UserRoundCheck,
-  Wallet,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  CheckIn,
-  CheckInInput,
-  buildCheckInDateTime,
-  formatAmountCRC,
-  formatLocalDateKey,
-  formatSelectedDate,
-  getMonthlyAttendanceRanking,
-} from "@/lib/checkins";
-import { addCheckIn, deleteCheckIn, updateCheckIn } from "@/lib/actions";
-import {
-  MemberWithStatus,
-  StoreProductRow,
-  disciplineLabels,
-} from "@/lib/types";
-import { formatPersonName, getFirstNameAndSurnameKey } from "@/lib/member-utils";
-import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { fireSuccessConfetti } from "@/lib/confetti";
-import { trackEvent } from "@/lib/analytics";
+  import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+  import {
+    CalendarDays,
+    ChevronLeft,
+    ChevronRight,
+    Check,
+    Clock3,
+    Droplets,
+    Dumbbell,
+    LogIn,
+    Trash2,
+    Package,
+    Pencil,
+    Plus,
+    Search,
+    ShoppingBag,
+    Trophy,
+    User,
+    UserRoundCheck,
+    Wallet,
+    X,
+  } from "lucide-react";
+  import { Button } from "@/components/ui/button";
+  import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+  } from "@/components/ui/dialog";
+  import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+  import { Input } from "@/components/ui/input";
+  import { Label } from "@/components/ui/label";
+  import { Badge } from "@/components/ui/badge";
+  import { Textarea } from "@/components/ui/textarea";
+  import { Calendar } from "@/components/ui/calendar";
+  import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+  } from "@/components/ui/popover";
+  import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+  } from "@/components/ui/sheet";
+  import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectSeparator,
+    SelectTrigger,
+    SelectValue,
+  } from "@/components/ui/select";
+  import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+  } from "@/components/ui/table";
+  import {
+    type AttendanceRankingEntry,
+    CheckIn,
+    CheckInInput,
+    buildCheckInDateTime,
+    formatAmountCRC,
+    formatLocalDateKey,
+    formatMonthLabel,
+    formatSelectedDate,
+    getMonthlyAttendanceFullRanking,
+  } from "@/lib/checkins";
+  import { addCheckIn, deleteCheckIn, updateCheckIn } from "@/lib/actions";
+  import {
+    MemberWithStatus,
+    StoreProductRow,
+    disciplineLabels,
+  } from "@/lib/types";
+  import { formatPersonName, getFirstNameAndSurnameKey } from "@/lib/member-utils";
+  import { createClient } from "@/lib/supabase/client";
+  import { cn } from "@/lib/utils";
+  import { useRouter } from "next/navigation";
+  import { toast } from "sonner";
+  import { fireSuccessConfetti } from "@/lib/confetti";
+  import { trackEvent } from "@/lib/analytics";
 
-interface CheckInsDashboardProps {
-  initialCheckIns?: CheckIn[];
-  initialProducts: StoreProductRow[];
-  initialMembers: MemberWithStatus[];
-  initialDateKey: string;
-  initialTime: string;
-  checkIns?: CheckIn[];
-  setCheckIns?: React.Dispatch<React.SetStateAction<CheckIn[]>>;
-}
-
-type PaymentMethodValue = "TARJETA" | "EFECTIVO" | "SINPE" | "NONE";
-
-type CheckInFormState = {
-  name: string;
-  time: string;
-  hasPurchase: boolean;
-  product: string;
-  paymentMethod: PaymentMethodValue;
-  amount: string;
-  notes: string;
-};
-
-type PriceItem = {
-  id?: string;
-  name: string;
-  price: string;
-};
-
-type PriceCategory = {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  items: PriceItem[];
-};
-
-function getCheckInActionErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message === "MISSING_CHECK_INS_TABLE") {
-    return "Falta crear la tabla check_ins en Supabase";
+  interface CheckInsDashboardProps {
+    initialCheckIns?: CheckIn[];
+    initialProducts: StoreProductRow[];
+    initialMembers: MemberWithStatus[];
+    initialDateKey: string;
+    initialTime: string;
+    checkIns?: CheckIn[];
+    setCheckIns?: React.Dispatch<React.SetStateAction<CheckIn[]>>;
   }
-  return "No se pudo completar la accion";
-}
 
-function capitalizeWords(value: string): string {
-  return value
-    .split(" ")
-    .map((word) =>
-      word.length > 0
-        ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        : word
-    )
-    .join(" ");
-}
+  type PaymentMethodValue = "TARJETA" | "EFECTIVO" | "SINPE" | "NONE";
 
-function createInitialFormState(initialTime: string): CheckInFormState {
-  return {
-    name: "",
-    time: initialTime,
-    hasPurchase: false,
-    product: "",
-    paymentMethod: "NONE",
-    amount: "",
-    notes: "",
+  type CheckInFormState = {
+    name: string;
+    time: string;
+    hasPurchase: boolean;
+    product: string;
+    paymentMethod: PaymentMethodValue;
+    amount: string;
+    notes: string;
   };
-}
 
-function useDebouncedValue<T>(value: T, delayMs: number) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
+  type PriceItem = {
+    id?: string;
+    name: string;
+    price: string;
+  };
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedValue(value);
-    }, delayMs);
+  type PriceCategory = {
+    title: string;
+    icon: React.ComponentType<{ className?: string }>;
+    items: PriceItem[];
+  };
 
-    return () => {
-      window.clearTimeout(timeoutId);
+  function getCheckInActionErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message === "MISSING_CHECK_INS_TABLE") {
+      return "Falta crear la tabla check_ins en Supabase";
+    }
+    return "No se pudo completar la accion";
+  }
+
+  function capitalizeWords(value: string): string {
+    return value
+      .split(" ")
+      .map((word) =>
+        word.length > 0
+          ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          : word
+      )
+      .join(" ");
+  }
+
+  function createInitialFormState(initialTime: string): CheckInFormState {
+    return {
+      name: "",
+      time: initialTime,
+      hasPurchase: false,
+      product: "",
+      paymentMethod: "NONE",
+      amount: "",
+      notes: "",
     };
-  }, [delayMs, value]);
-
-  return debouncedValue;
-}
-
-function Pill({
-  children,
-  tone = "neutral",
-}: {
-  children: React.ReactNode;
-  tone?: "neutral" | "success";
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow]",
-        tone === "success"
-          ? "border-0 border-transparent bg-primary text-primary-foreground hover:bg-primary"
-          : "border border-border bg-background text-foreground hover:bg-background"
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-function getMemberStatusClasses(status: MemberWithStatus["status"]) {
-  switch (status) {
-    case "active":
-      return "bg-emerald-100 text-emerald-800 font-semibold";
-    case "expiring":
-      return "bg-amber-100 text-amber-800 font-semibold";
-    case "expired":
-      return "bg-red-100 text-red-800 font-semibold";
-    case "inactive":
-      return "bg-sky-100 text-sky-800 font-semibold";
   }
-}
 
-function getStartOfWeek(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  const day = copy.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + diff);
-  return copy;
-}
+  function useDebouncedValue<T>(value: T, delayMs: number) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
 
-function getEndOfWeek(date: Date) {
-  const start = getStartOfWeek(date);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
+    useEffect(() => {
+      const timeoutId = window.setTimeout(() => {
+        setDebouncedValue(value);
+      }, delayMs);
 
-function formatWeekdayLabel(date: Date) {
-  return new Intl.DateTimeFormat("es-CR", {
-    weekday: "short",
-    day: "numeric",
-  }).format(date);
-}
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }, [delayMs, value]);
 
-function shiftDateKey(dateKey: string, amount: number) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
-  date.setDate(date.getDate() + amount);
-  return formatLocalDateKey(date);
-}
-
-function dateKeyToDate(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function encodeProductSelectValue(product: StoreProductRow) {
-  return `${product.id}::${product.name}`;
-}
-
-function decodeProductNameFromSelectValue(value: string) {
-  const separatorIndex = value.indexOf("::");
-  return separatorIndex >= 0 ? value.slice(separatorIndex + 2) : value;
-}
-
-function getProductCounts(productNames: string[]) {
-  const counts = new Map<string, number>();
-  for (const name of productNames) {
-    counts.set(name, (counts.get(name) ?? 0) + 1);
+    return debouncedValue;
   }
-  return Array.from(counts.entries()).map(([name, quantity]) => ({ name, quantity }));
-}
 
-function getSelectValueForProductName(
-  products: StoreProductRow[],
-  productName: string
-) {
-  const match = products.find((product) => product.name === productName);
-  return match ? encodeProductSelectValue(match) : undefined;
-}
+  function Pill({
+    children,
+    tone = "neutral",
+  }: {
+    children: React.ReactNode;
+    tone?: "neutral" | "success";
+  }) {
+    return (
+      <span
+        className={cn(
+          "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow]",
+          tone === "success"
+            ? "border-0 border-transparent bg-primary text-primary-foreground hover:bg-primary"
+            : "border border-border bg-background text-foreground hover:bg-background"
+        )}
+      >
+        {children}
+      </span>
+    );
+  }
 
-// ─── FIX: step titles now correctly reflect the dynamic flow ───────────────
-function getMobileStepTitle(step: number, hasPurchase: boolean) {
-  if (step === 1) return "Datos";
-  if (hasPurchase) {
-    if (step === 2) return "Compra";
+  function getMemberStatusClasses(status: MemberWithStatus["status"]) {
+    switch (status) {
+      case "active":
+        return "bg-emerald-100 text-emerald-800 font-semibold";
+      case "expiring":
+        return "bg-amber-100 text-amber-800 font-semibold";
+      case "expired":
+        return "bg-red-100 text-red-800 font-semibold";
+      case "inactive":
+        return "bg-sky-100 text-sky-800 font-semibold";
+    }
+  }
+
+  function getStartOfWeek(date: Date) {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    const day = copy.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    copy.setDate(copy.getDate() + diff);
+    return copy;
+  }
+
+  function getEndOfWeek(date: Date) {
+    const start = getStartOfWeek(date);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  }
+
+  function formatWeekdayLabel(date: Date) {
+    return new Intl.DateTimeFormat("es-CR", {
+      weekday: "short",
+      day: "numeric",
+    }).format(date);
+  }
+
+  function shiftDateKey(dateKey: string, amount: number) {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    date.setDate(date.getDate() + amount);
+    return formatLocalDateKey(date);
+  }
+
+  function dateKeyToDate(dateKey: string) {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    return new Date(year, month - 1, day, 12, 0, 0, 0);
+  }
+
+  function encodeProductSelectValue(product: StoreProductRow) {
+    return `${product.id}::${product.name}`;
+  }
+
+  function decodeProductNameFromSelectValue(value: string) {
+    const separatorIndex = value.indexOf("::");
+    return separatorIndex >= 0 ? value.slice(separatorIndex + 2) : value;
+  }
+
+  function getProductCounts(productNames: string[]) {
+    const counts = new Map<string, number>();
+    for (const name of productNames) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([name, quantity]) => ({ name, quantity }));
+  }
+
+  function getSelectValueForProductName(
+    products: StoreProductRow[],
+    productName: string
+  ) {
+    const match = products.find((product) => product.name === productName);
+    return match ? encodeProductSelectValue(match) : undefined;
+  }
+
+  // ─── FIX: step titles now correctly reflect the dynamic flow ───────────────
+  function getMobileStepTitle(step: number, hasPurchase: boolean) {
+    if (step === 1) return "Datos";
+    if (hasPurchase) {
+      if (step === 2) return "Compra";
+      return "Notas";
+    }
+    // without purchase: step 2 is always Notes
     return "Notas";
   }
-  // without purchase: step 2 is always Notes
-  return "Notas";
-}
 
-export function CheckInsDashboard({
-  initialCheckIns = [],
-  initialProducts,
-  initialMembers,
-  initialDateKey,
-  initialTime,
-  checkIns: controlledCheckIns,
-  setCheckIns: controlledSetCheckIns,
-}: CheckInsDashboardProps) {
-  const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
-  const [localCheckIns, setLocalCheckIns] = useState(initialCheckIns);
-  const checkIns = controlledCheckIns ?? localCheckIns;
-  const setCheckIns = controlledSetCheckIns ?? setLocalCheckIns;
-  const [products, setProducts] = useState(initialProducts);
-  const [isPending, startTransition] = useTransition();
-  const [selectedDate, setSelectedDate] = useState(initialDateKey);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [formState, setFormState] = useState<CheckInFormState>(
-    createInitialFormState(initialTime)
-  );
-  const [isPriceSheetOpen, setIsPriceSheetOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingState, setEditingState] = useState<CheckInFormState | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [paymentError, setPaymentError] = useState(false);
-  const [mobileStep, setMobileStep] = useState(1);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const [isSalesDetailOpen, setIsSalesDetailOpen] = useState(false);
-  const [matchedMemberPhotoUrl, setMatchedMemberPhotoUrl] = useState("");
-
-  // ─── FIX: totalMobileSteps is now dynamic based on hasPurchase ────────────
-  const totalMobileSteps = formState.hasPurchase ? 3 : 2;
-
-  const activeProducts = useMemo(
-    () => products.filter((product) => product.is_active),
-    [products]
-  );
-
-  const groupedProducts = useMemo(() => {
-    return activeProducts.reduce<Record<string, StoreProductRow[]>>((groups, product) => {
-      const key = product.category.trim() || "Otros";
-      groups[key] = groups[key] ? [...groups[key], product] : [product];
-      return groups;
-    }, {});
-  }, [activeProducts]);
-
-  const orderedProductGroups = useMemo(
-    () =>
-      Object.entries(groupedProducts)
-        .sort(([left], [right]) => left.localeCompare(right, "es-CR"))
-        .map(([category, categoryProducts]) => ({
-          category,
-          products: [...categoryProducts].sort((left, right) =>
-            left.name.localeCompare(right.name, "es-CR")
-          ),
-        })),
-    [groupedProducts]
-  );
-
-  // ─── FIX: clamp mobileStep when totalMobileSteps shrinks ─────────────────
-  useEffect(() => {
-    setMobileStep((current) => Math.min(current, totalMobileSteps));
-  }, [totalMobileSteps]);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const matchedMember = useMemo(() => {
-    const normalizedName = formatPersonName(formState.name);
-    if (!normalizedName.trim()) return null;
-
-    const directMatch = initialMembers.find(
-      (member) => formatPersonName(member.name) === normalizedName
+  export function CheckInsDashboard({
+    initialCheckIns = [],
+    initialProducts,
+    initialMembers,
+    initialDateKey,
+    initialTime,
+    checkIns: controlledCheckIns,
+    setCheckIns: controlledSetCheckIns,
+  }: CheckInsDashboardProps) {
+    const router = useRouter();
+    const supabase = useMemo(() => createClient(), []);
+    const [localCheckIns, setLocalCheckIns] = useState(initialCheckIns);
+    const checkIns = controlledCheckIns ?? localCheckIns;
+    const setCheckIns = controlledSetCheckIns ?? setLocalCheckIns;
+    const [products, setProducts] = useState(initialProducts);
+    const [isPending, startTransition] = useTransition();
+    const [selectedDate, setSelectedDate] = useState(initialDateKey);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [isAddOpen, setIsAddOpen] = useState(false);
+    const [formState, setFormState] = useState<CheckInFormState>(
+      createInitialFormState(initialTime)
     );
-    if (directMatch) return directMatch;
+    const [isPriceSheetOpen, setIsPriceSheetOpen] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingState, setEditingState] = useState<CheckInFormState | null>(null);
+    const [confirmingDelete, setConfirmingDelete] = useState(false);
+    const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+    const [paymentError, setPaymentError] = useState(false);
+    const [mobileStep, setMobileStep] = useState(1);
+    const [calendarOpen, setCalendarOpen] = useState(false);
+    const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
+    const [isSalesDetailOpen, setIsSalesDetailOpen] = useState(false);
+    const [isMonthlyTopDetailOpen, setIsMonthlyTopDetailOpen] = useState(false);
+    const [matchedMemberPhotoUrl, setMatchedMemberPhotoUrl] = useState("");
 
-    const key = getFirstNameAndSurnameKey(normalizedName);
-    if (!key) return null;
+    // ─── FIX: totalMobileSteps is now dynamic based on hasPurchase ────────────
+    const totalMobileSteps = formState.hasPurchase ? 3 : 2;
 
-    return (
-      initialMembers.find(
-        (member) => getFirstNameAndSurnameKey(member.name) === key
-      ) ?? null
+    const activeProducts = useMemo(
+      () => products.filter((product) => product.is_active),
+      [products]
     );
-  }, [formState.name, initialMembers]);
 
-  const monthlyAttendanceForTypedName = useMemo(() => {
-    const normalizedName = formatPersonName(formState.name);
-    if (!normalizedName.trim()) return null;
+    const groupedProducts = useMemo(() => {
+      return activeProducts.reduce<Record<string, StoreProductRow[]>>((groups, product) => {
+        const key = product.category.trim() || "Otros";
+        groups[key] = groups[key] ? [...groups[key], product] : [product];
+        return groups;
+      }, {});
+    }, [activeProducts]);
 
-    const referenceName = matchedMember?.name ?? normalizedName;
-    const referenceFullName = formatPersonName(referenceName);
-    const referenceKey = getFirstNameAndSurnameKey(referenceName);
-    const selectedMonthKey = selectedDate.slice(0, 7);
-    const visitDays = new Set<string>();
+    const orderedProductGroups = useMemo(
+      () =>
+        Object.entries(groupedProducts)
+          .sort(([left], [right]) => left.localeCompare(right, "es-CR"))
+          .map(([category, categoryProducts]) => ({
+            category,
+            products: [...categoryProducts].sort((left, right) =>
+              left.name.localeCompare(right.name, "es-CR")
+            ),
+          })),
+      [groupedProducts]
+    );
 
-    for (const checkIn of checkIns) {
-      const checkInDateKey = formatLocalDateKey(checkIn.datetime);
-      if (!checkInDateKey.startsWith(selectedMonthKey)) continue;
+    // ─── FIX: clamp mobileStep when totalMobileSteps shrinks ─────────────────
+    useEffect(() => {
+      setMobileStep((current) => Math.min(current, totalMobileSteps));
+    }, [totalMobileSteps]);
 
-      const checkInFullName = formatPersonName(checkIn.name);
-      const checkInKey = getFirstNameAndSurnameKey(checkIn.name);
-      const matchesByFullName =
-        checkInFullName.length > 0 && checkInFullName === referenceFullName;
-      const matchesByKey =
-        Boolean(referenceKey) &&
-        Boolean(checkInKey) &&
-        checkInKey === referenceKey;
+    useEffect(() => {
+      setIsMounted(true);
+    }, []);
 
-      if (matchesByFullName || matchesByKey) {
-        visitDays.add(checkInDateKey);
+    const matchedMember = useMemo(() => {
+      const normalizedName = formatPersonName(formState.name);
+      if (!normalizedName.trim()) return null;
+
+      const directMatch = initialMembers.find(
+        (member) => formatPersonName(member.name) === normalizedName
+      );
+      if (directMatch) return directMatch;
+
+      const key = getFirstNameAndSurnameKey(normalizedName);
+      if (!key) return null;
+
+      return (
+        initialMembers.find(
+          (member) => getFirstNameAndSurnameKey(member.name) === key
+        ) ?? null
+      );
+    }, [formState.name, initialMembers]);
+
+    const monthlyAttendanceForTypedName = useMemo(() => {
+      const normalizedName = formatPersonName(formState.name);
+      if (!normalizedName.trim()) return null;
+
+      const referenceName = matchedMember?.name ?? normalizedName;
+      const referenceFullName = formatPersonName(referenceName);
+      const referenceKey = getFirstNameAndSurnameKey(referenceName);
+      const selectedMonthKey = selectedDate.slice(0, 7);
+      const visitDays = new Set<string>();
+
+      for (const checkIn of checkIns) {
+        const checkInDateKey = formatLocalDateKey(checkIn.datetime);
+        if (!checkInDateKey.startsWith(selectedMonthKey)) continue;
+
+        const checkInFullName = formatPersonName(checkIn.name);
+        const checkInKey = getFirstNameAndSurnameKey(checkIn.name);
+        const matchesByFullName =
+          checkInFullName.length > 0 && checkInFullName === referenceFullName;
+        const matchesByKey =
+          Boolean(referenceKey) &&
+          Boolean(checkInKey) &&
+          checkInKey === referenceKey;
+
+        if (matchesByFullName || matchesByKey) {
+          visitDays.add(checkInDateKey);
+        }
       }
-    }
 
-    return {
-      name: referenceName,
-      visits: visitDays.size,
-    };
-  }, [checkIns, formState.name, matchedMember, selectedDate]);
+      return {
+        name: referenceName,
+        visits: visitDays.size,
+      };
+    }, [checkIns, formState.name, matchedMember, selectedDate]);
 
-  const matchedMemberPhotoPath = matchedMember?.photo_url ?? "";
-  const debouncedMatchedMemberPhotoPath = useDebouncedValue(
-    matchedMemberPhotoPath,
-    300
-  );
-  const matchedMemberPhotoCacheRef = useRef<{
-    path: string;
-    url: string;
-  } | null>(null);
-  const matchedMemberPhotoPathRef = useRef(matchedMemberPhotoPath);
+    const matchedMemberPhotoPath = matchedMember?.photo_url ?? "";
+    const debouncedMatchedMemberPhotoPath = useDebouncedValue(
+      matchedMemberPhotoPath,
+      300
+    );
+    const matchedMemberPhotoCacheRef = useRef<{
+      path: string;
+      url: string;
+    } | null>(null);
+    const matchedMemberPhotoPathRef = useRef(matchedMemberPhotoPath);
 
-  matchedMemberPhotoPathRef.current = matchedMemberPhotoPath;
+    matchedMemberPhotoPathRef.current = matchedMemberPhotoPath;
 
-  useEffect(() => {
-    const photoUrl = matchedMemberPhotoPath;
+    useEffect(() => {
+      const photoUrl = matchedMemberPhotoPath;
 
-    if (!photoUrl) {
-      setMatchedMemberPhotoUrl("");
-      return;
-    }
+      if (!photoUrl) {
+        setMatchedMemberPhotoUrl("");
+        return;
+      }
 
-    if (/^https?:\/\//i.test(photoUrl)) {
-      setMatchedMemberPhotoUrl(photoUrl);
-      return;
-    }
-
-    const cached = matchedMemberPhotoCacheRef.current;
-    if (cached && cached.path === photoUrl) {
-      setMatchedMemberPhotoUrl(cached.url);
-      return;
-    }
-
-    setMatchedMemberPhotoUrl("");
-  }, [matchedMemberPhotoPath]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadMatchedMemberPhoto() {
-      const photoUrl = debouncedMatchedMemberPhotoPath;
-
-      if (!photoUrl || /^https?:\/\//i.test(photoUrl)) {
+      if (/^https?:\/\//i.test(photoUrl)) {
+        setMatchedMemberPhotoUrl(photoUrl);
         return;
       }
 
       const cached = matchedMemberPhotoCacheRef.current;
       if (cached && cached.path === photoUrl) {
-        if (matchedMemberPhotoPathRef.current === photoUrl) {
-          setMatchedMemberPhotoUrl(cached.url);
+        setMatchedMemberPhotoUrl(cached.url);
+        return;
+      }
+
+      setMatchedMemberPhotoUrl("");
+    }, [matchedMemberPhotoPath]);
+
+    useEffect(() => {
+      let isMounted = true;
+
+      async function loadMatchedMemberPhoto() {
+        const photoUrl = debouncedMatchedMemberPhotoPath;
+
+        if (!photoUrl || /^https?:\/\//i.test(photoUrl)) {
+          return;
         }
-        return;
+
+        const cached = matchedMemberPhotoCacheRef.current;
+        if (cached && cached.path === photoUrl) {
+          if (matchedMemberPhotoPathRef.current === photoUrl) {
+            setMatchedMemberPhotoUrl(cached.url);
+          }
+          return;
+        }
+
+        const { data, error } = await supabase.storage
+          .from("faces")
+          .createSignedUrl(photoUrl, 60 * 60);
+
+        if (!isMounted || matchedMemberPhotoPathRef.current !== photoUrl) return;
+
+        if (error) {
+          console.error("Failed to create signed photo URL for matched member:", error);
+          setMatchedMemberPhotoUrl("");
+          return;
+        }
+
+        matchedMemberPhotoCacheRef.current = {
+          path: photoUrl,
+          url: data.signedUrl,
+        };
+        setMatchedMemberPhotoUrl(data.signedUrl);
       }
 
-      const { data, error } = await supabase.storage
-        .from("faces")
-        .createSignedUrl(photoUrl, 60 * 60);
+      void loadMatchedMemberPhoto();
 
-      if (!isMounted || matchedMemberPhotoPathRef.current !== photoUrl) return;
-
-      if (error) {
-        console.error("Failed to create signed photo URL for matched member:", error);
-        setMatchedMemberPhotoUrl("");
-        return;
-      }
-
-      matchedMemberPhotoCacheRef.current = {
-        path: photoUrl,
-        url: data.signedUrl,
+      return () => {
+        isMounted = false;
       };
-      setMatchedMemberPhotoUrl(data.signedUrl);
-    }
+    }, [debouncedMatchedMemberPhotoPath, supabase]);
 
-    void loadMatchedMemberPhoto();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [debouncedMatchedMemberPhotoPath, supabase]);
-
-  const memberNameSuggestions = useMemo(() => {
-    const normalizedQuery = formatPersonName(formState.name).toLowerCase();
-    const names = Array.from(
-      new Set(
-        initialMembers
-          .map((member) => formatPersonName(member.name))
-          .filter((name) => name.length > 0)
-      )
-    ).sort((left, right) => left.localeCompare(right, "es-CR"));
-
-    if (!normalizedQuery) return names.slice(0, 8);
-
-    const startsWithMatches = names.filter((name) =>
-      name.toLowerCase().startsWith(normalizedQuery)
-    );
-    const containsMatches = names.filter(
-      (name) =>
-        !name.toLowerCase().startsWith(normalizedQuery) &&
-        name.toLowerCase().includes(normalizedQuery)
-    );
-
-    return [...startsWithMatches, ...containsMatches].slice(0, 8);
-  }, [formState.name, initialMembers]);
-
-  const shouldShowNameSuggestions =
-    showNameSuggestions &&
-    formatPersonName(formState.name).length > 0 &&
-    memberNameSuggestions.length > 0;
-
-  const membersByNameKey = useMemo(() => {
-    const entries = new Map<string, MemberWithStatus>();
-
-    for (const member of initialMembers) {
-      const normalizedFullName = formatPersonName(member.name);
-      if (normalizedFullName) {
-        entries.set(normalizedFullName, member);
-      }
-
-      const key = getFirstNameAndSurnameKey(member.name);
-      if (key && !entries.has(key)) {
-        entries.set(key, member);
-      }
-    }
-
-    return entries;
-  }, [initialMembers]);
-
-  function getMatchedMemberForName(name: string) {
-    const normalizedName = formatPersonName(name);
-    if (!normalizedName) return null;
-
-    return (
-      membersByNameKey.get(normalizedName) ??
-      membersByNameKey.get(getFirstNameAndSurnameKey(normalizedName)) ??
-      null
-    );
-  }
-
-  function getInitials(name: string) {
-    return name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("");
-  }
-
-  const selectedProductsTotal = useMemo(
-    () =>
-      selectedProducts.reduce((sum, productName) => {
-        const product = getProductByName(productName);
-        return sum + (product?.price ?? 0);
-      }, 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedProducts, activeProducts]
-  );
-
-  const selectedProductCounts = useMemo(
-    () => getProductCounts(selectedProducts),
-    [selectedProducts]
-  );
-
-  function getProductByName(name: string) {
-    return activeProducts.find((product) => product.name === name);
-  }
-
-  function syncSelectedProducts(nextProducts: string[]) {
-    setSelectedProducts(nextProducts);
-    setFormState((current) => ({
-      ...current,
-      product: nextProducts.join(", "),
-      amount: String(
-        nextProducts.reduce(
-          (sum, productName) => sum + (getProductByName(productName)?.price ?? 0),
-          0
+    const memberNameSuggestions = useMemo(() => {
+      const normalizedQuery = formatPersonName(formState.name).toLowerCase();
+      const names = Array.from(
+        new Set(
+          initialMembers
+            .map((member) => formatPersonName(member.name))
+            .filter((name) => name.length > 0)
         )
-      ),
-    }));
-  }
+      ).sort((left, right) => left.localeCompare(right, "es-CR"));
 
-  function addSelectedProduct(name: string) {
-    const productName = decodeProductNameFromSelectValue(name);
-    if (!productName) return;
-    syncSelectedProducts([...selectedProducts, productName]);
-    toast.success(`Producto agregado: ${productName}`);
-  }
+      if (!normalizedQuery) return names.slice(0, 8);
 
-  function removeSelectedProductAt(indexToRemove: number) {
-    const nextProducts = selectedProducts.filter((_, index) => index !== indexToRemove);
-    syncSelectedProducts(nextProducts);
-  }
-
-  function removeOneSelectedProduct(name: string) {
-    const index = selectedProducts.indexOf(name);
-    if (index < 0) return;
-    removeSelectedProductAt(index);
-  }
-
-  function parseStoredProductList(value: string) {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  function sumProductsAmount(productNames: string[]) {
-    return productNames.reduce(
-      (sum, productName) => sum + (getProductByName(productName)?.price ?? 0),
-      0
-    );
-  }
-
-  function toPayload(state: CheckInFormState, date: string): CheckInInput {
-    const amountValue = state.hasPurchase ? Number(state.amount || "0") : 0;
-
-    return {
-      name: state.name.trim(),
-      date,
-      time: state.time.trim(),
-      hasPurchase: state.hasPurchase,
-      product: state.hasPurchase ? state.product.trim() || undefined : undefined,
-      paymentMethod:
-        state.hasPurchase && state.paymentMethod !== "NONE"
-          ? state.paymentMethod
-          : undefined,
-      amount:
-        state.hasPurchase && Number.isFinite(amountValue) && amountValue > 0
-          ? amountValue
-          : undefined,
-      notes: state.notes.trim() || undefined,
-    };
-  }
-
-  const dayCheckIns = useMemo(() => {
-    return checkIns
-      .filter((checkIn) => formatLocalDateKey(checkIn.datetime) === selectedDate)
-      .sort(
-        (left, right) =>
-          new Date(left.datetime).getTime() - new Date(right.datetime).getTime()
+      const startsWithMatches = names.filter((name) =>
+        name.toLowerCase().startsWith(normalizedQuery)
       );
-  }, [checkIns, selectedDate]);
+      const containsMatches = names.filter(
+        (name) =>
+          !name.toLowerCase().startsWith(normalizedQuery) &&
+          name.toLowerCase().includes(normalizedQuery)
+      );
 
-  const filteredCheckIns = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
-    if (!normalized) return dayCheckIns;
+      return [...startsWithMatches, ...containsMatches].slice(0, 8);
+    }, [formState.name, initialMembers]);
 
-    return dayCheckIns.filter((checkIn) =>
-      checkIn.name.toLowerCase().includes(normalized)
-    );
-  }, [dayCheckIns, searchTerm]);
+    const shouldShowNameSuggestions =
+      showNameSuggestions &&
+      formatPersonName(formState.name).length > 0 &&
+      memberNameSuggestions.length > 0;
 
-  const weeklySearchSummary = useMemo(() => {
-    const normalizedSearch = formatPersonName(searchTerm);
-    if (!normalizedSearch) return null;
+    const membersByNameKey = useMemo(() => {
+      const entries = new Map<string, MemberWithStatus>();
 
-    const anchorDate = new Date(`${selectedDate}T00:00:00`);
-    const weekStart = getStartOfWeek(anchorDate);
-    const weekEnd = getEndOfWeek(anchorDate);
+      for (const member of initialMembers) {
+        const normalizedFullName = formatPersonName(member.name);
+        if (normalizedFullName) {
+          entries.set(normalizedFullName, member);
+        }
 
-    const matchingWeekCheckIns = checkIns.filter((checkIn) => {
-      const normalizedName = formatPersonName(checkIn.name);
-      const checkInDate = new Date(checkIn.datetime);
+        const key = getFirstNameAndSurnameKey(member.name);
+        if (key && !entries.has(key)) {
+          entries.set(key, member);
+        }
+      }
+
+      return entries;
+    }, [initialMembers]);
+
+    function getMatchedMemberForName(name: string) {
+      const normalizedName = formatPersonName(name);
+      if (!normalizedName) return null;
 
       return (
-        normalizedName.includes(normalizedSearch) &&
-        checkInDate >= weekStart &&
-        checkInDate <= weekEnd
-      );
-    });
-
-    if (matchingWeekCheckIns.length === 0) return null;
-
-    const groupedByDay = new Map<string, Date>();
-    for (const checkIn of matchingWeekCheckIns) {
-      const date = new Date(checkIn.datetime);
-      const key = formatLocalDateKey(date);
-      if (!groupedByDay.has(key)) {
-        groupedByDay.set(key, date);
-      }
-    }
-
-    const visitedDays = Array.from(groupedByDay.values()).sort(
-      (left, right) => left.getTime() - right.getTime()
-    );
-
-    const exactNameMatch =
-      matchingWeekCheckIns.find(
-        (checkIn) => formatPersonName(checkIn.name) === normalizedSearch
-      )?.name ?? matchingWeekCheckIns[0]?.name ?? searchTerm.trim();
-
-    return {
-      name: exactNameMatch,
-      count: visitedDays.length,
-      days: visitedDays.map(formatWeekdayLabel),
-    };
-  }, [checkIns, searchTerm, selectedDate]);
-
-  const metrics = useMemo(() => {
-    const sales = dayCheckIns.filter((checkIn) => checkIn.hasPurchase);
-    const totalSold = sales.reduce(
-      (sum, checkIn) => sum + (checkIn.amount ?? 0),
-      0
-    );
-
-    return {
-      visits: dayCheckIns.length,
-      sales: sales.length,
-      totalSold,
-    };
-  }, [dayCheckIns]);
-
-  const salesDetail = useMemo(() => {
-    const sales = dayCheckIns.filter((checkIn) => checkIn.hasPurchase);
-    const totalsByPaymentMethod = new Map<string, number>();
-
-    for (const sale of sales) {
-      const paymentKey = sale.paymentMethod ?? "SIN METODO";
-      totalsByPaymentMethod.set(
-        paymentKey,
-        (totalsByPaymentMethod.get(paymentKey) ?? 0) + (sale.amount ?? 0)
+        membersByNameKey.get(normalizedName) ??
+        membersByNameKey.get(getFirstNameAndSurnameKey(normalizedName)) ??
+        null
       );
     }
 
-    return {
-      sales,
-      totalsByPaymentMethod: Array.from(totalsByPaymentMethod.entries())
-        .map(([paymentMethod, total]) => ({
-          paymentMethod,
-          total,
-        }))
-        .sort((left, right) => right.total - left.total),
-    };
-  }, [dayCheckIns]);
-
-  const monthlyRanking = useMemo(() => {
-    return getMonthlyAttendanceRanking(checkIns, selectedDate, 1);
-  }, [checkIns, selectedDate]);
-  const topMonthlyVisits = monthlyRanking[0]?.visits ?? 0;
-  const monthlyLeadersNames = monthlyRanking.map((entry) => entry.name).join(", ");
-  const shouldShowMonthlyLeaders = topMonthlyVisits > 6;
-
-  function updateForm<K extends keyof CheckInFormState>(
-    key: K,
-    value: CheckInFormState[K]
-  ) {
-    if (key === "hasPurchase") {
-      const hasPurchase = Boolean(value);
-      setPaymentError(false);
-      if (!hasPurchase) {
-        setSelectedProducts([]);
-        setFormState((current) => ({
-          ...current,
-          hasPurchase,
-          product: "",
-          paymentMethod: "NONE",
-          amount: "",
-        }));
-        return;
-      }
-
-      setFormState((current) => ({ ...current, hasPurchase }));
-      return;
+    function getInitials(name: string) {
+      return name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("");
     }
 
-    setFormState((current) => ({ ...current, [key]: value }));
-  }
+    const selectedProductsTotal = useMemo(
+      () =>
+        selectedProducts.reduce((sum, productName) => {
+          const product = getProductByName(productName);
+          return sum + (product?.price ?? 0);
+        }, 0),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [selectedProducts, activeProducts]
+    );
 
-  function resetForm() {
-    setFormState(createInitialFormState(initialTime));
-    setSelectedProducts([]);
-    setPaymentError(false);
-    setMobileStep(1);
-    setShowNameSuggestions(false);
-  }
+    const selectedProductCounts = useMemo(
+      () => getProductCounts(selectedProducts),
+      [selectedProducts]
+    );
 
-  // ─── FIX: handleMobileNext now handles save when on last step ────────────
-  function handleMobileNext() {
-    if (mobileStep === 1 && !formState.name.trim()) return;
-
-    if (formState.hasPurchase && mobileStep === 2) {
-      if (selectedProducts.length === 0) {
-        toast.error("Selecciona al menos un producto");
-        return;
-      }
-      if (formState.paymentMethod === "NONE") {
-        setPaymentError(true);
-        return;
-      }
+    function getProductByName(name: string) {
+      return activeProducts.find((product) => product.name === name);
     }
 
-    // If already on last step, submit the form
-    if (mobileStep >= totalMobileSteps) {
-      handleAddPerson();
-      return;
+    function syncSelectedProducts(nextProducts: string[]) {
+      setSelectedProducts(nextProducts);
+      setFormState((current) => ({
+        ...current,
+        product: nextProducts.join(", "),
+        amount: String(
+          nextProducts.reduce(
+            (sum, productName) => sum + (getProductByName(productName)?.price ?? 0),
+            0
+          )
+        ),
+      }));
     }
 
-    setMobileStep((current) => Math.min(current + 1, totalMobileSteps));
-  }
+    function addSelectedProduct(name: string) {
+      const productName = decodeProductNameFromSelectValue(name);
+      if (!productName) return;
+      syncSelectedProducts([...selectedProducts, productName]);
+      toast.success(`Producto agregado: ${productName}`);
+    }
 
-  function handleMobileBack() {
-    setMobileStep((current) => Math.max(current - 1, 1));
-  }
+    function removeSelectedProductAt(indexToRemove: number) {
+      const nextProducts = selectedProducts.filter((_, index) => index !== indexToRemove);
+      syncSelectedProducts(nextProducts);
+    }
 
-  function startEditing(checkIn: CheckIn) {
-    const initialProducts = parseStoredProductList(checkIn.product ?? "");
-    setEditingId(checkIn.id);
-    setConfirmingDelete(false);
-    setEditingState({
-      name: checkIn.name,
-      time: checkIn.time,
-      hasPurchase: checkIn.hasPurchase,
-      product: initialProducts.join(", "),
-      paymentMethod: checkIn.paymentMethod ?? "NONE",
-      amount: checkIn.amount ? String(checkIn.amount) : "",
-      notes: checkIn.notes ?? "",
-    });
-  }
+    function removeOneSelectedProduct(name: string) {
+      const index = selectedProducts.indexOf(name);
+      if (index < 0) return;
+      removeSelectedProductAt(index);
+    }
 
-  function updateEditing<K extends keyof CheckInFormState>(
-    key: K,
-    value: CheckInFormState[K]
-  ) {
-    if (key === "hasPurchase") {
-      const hasPurchase = Boolean(value);
-      setEditingState((current) => {
-        if (!current) return current;
+    function parseStoredProductList(value: string) {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    function sumProductsAmount(productNames: string[]) {
+      return productNames.reduce(
+        (sum, productName) => sum + (getProductByName(productName)?.price ?? 0),
+        0
+      );
+    }
+
+    function toPayload(state: CheckInFormState, date: string): CheckInInput {
+      const amountValue = state.hasPurchase ? Number(state.amount || "0") : 0;
+
+      return {
+        name: state.name.trim(),
+        date,
+        time: state.time.trim(),
+        hasPurchase: state.hasPurchase,
+        product: state.hasPurchase ? state.product.trim() || undefined : undefined,
+        paymentMethod:
+          state.hasPurchase && state.paymentMethod !== "NONE"
+            ? state.paymentMethod
+            : undefined,
+        amount:
+          state.hasPurchase && Number.isFinite(amountValue) && amountValue > 0
+            ? amountValue
+            : undefined,
+        notes: state.notes.trim() || undefined,
+      };
+    }
+
+    const dayCheckIns = useMemo(() => {
+      return checkIns
+        .filter((checkIn) => formatLocalDateKey(checkIn.datetime) === selectedDate)
+        .sort(
+          (left, right) =>
+            new Date(left.datetime).getTime() - new Date(right.datetime).getTime()
+        );
+    }, [checkIns, selectedDate]);
+
+    const filteredCheckIns = useMemo(() => {
+      const normalized = searchTerm.trim().toLowerCase();
+      if (!normalized) return dayCheckIns;
+
+      return dayCheckIns.filter((checkIn) =>
+        checkIn.name.toLowerCase().includes(normalized)
+      );
+    }, [dayCheckIns, searchTerm]);
+
+    const weeklySearchSummary = useMemo(() => {
+      const normalizedSearch = formatPersonName(searchTerm);
+      if (!normalizedSearch) return null;
+
+      const anchorDate = new Date(`${selectedDate}T00:00:00`);
+      const weekStart = getStartOfWeek(anchorDate);
+      const weekEnd = getEndOfWeek(anchorDate);
+
+      const matchingWeekCheckIns = checkIns.filter((checkIn) => {
+        const normalizedName = formatPersonName(checkIn.name);
+        const checkInDate = new Date(checkIn.datetime);
+
+        return (
+          normalizedName.includes(normalizedSearch) &&
+          checkInDate >= weekStart &&
+          checkInDate <= weekEnd
+        );
+      });
+
+      if (matchingWeekCheckIns.length === 0) return null;
+
+      const groupedByDay = new Map<string, Date>();
+      for (const checkIn of matchingWeekCheckIns) {
+        const date = new Date(checkIn.datetime);
+        const key = formatLocalDateKey(date);
+        if (!groupedByDay.has(key)) {
+          groupedByDay.set(key, date);
+        }
+      }
+
+      const visitedDays = Array.from(groupedByDay.values()).sort(
+        (left, right) => left.getTime() - right.getTime()
+      );
+
+      const exactNameMatch =
+        matchingWeekCheckIns.find(
+          (checkIn) => formatPersonName(checkIn.name) === normalizedSearch
+        )?.name ?? matchingWeekCheckIns[0]?.name ?? searchTerm.trim();
+
+      return {
+        name: exactNameMatch,
+        count: visitedDays.length,
+        days: visitedDays.map(formatWeekdayLabel),
+      };
+    }, [checkIns, searchTerm, selectedDate]);
+
+    const metrics = useMemo(() => {
+      const sales = dayCheckIns.filter((checkIn) => checkIn.hasPurchase);
+      const totalSold = sales.reduce(
+        (sum, checkIn) => sum + (checkIn.amount ?? 0),
+        0
+      );
+
+      return {
+        visits: dayCheckIns.length,
+        sales: sales.length,
+        totalSold,
+      };
+    }, [dayCheckIns]);
+
+    const salesDetail = useMemo(() => {
+      const sales = dayCheckIns.filter((checkIn) => checkIn.hasPurchase);
+      const totalsByPaymentMethod = new Map<string, number>();
+
+      for (const sale of sales) {
+        const paymentKey = sale.paymentMethod ?? "SIN METODO";
+        totalsByPaymentMethod.set(
+          paymentKey,
+          (totalsByPaymentMethod.get(paymentKey) ?? 0) + (sale.amount ?? 0)
+        );
+      }
+
+      return {
+        sales,
+        totalsByPaymentMethod: Array.from(totalsByPaymentMethod.entries())
+          .map(([paymentMethod, total]) => ({
+            paymentMethod,
+            total,
+          }))
+          .sort((left, right) => right.total - left.total),
+      };
+    }, [dayCheckIns]);
+
+    const monthlyFullRanking = useMemo(() => {
+      return getMonthlyAttendanceFullRanking(checkIns, selectedDate);
+    }, [checkIns, selectedDate]);
+    const monthlyTopThree = monthlyFullRanking.slice(0, 3);
+
+    function updateForm<K extends keyof CheckInFormState>(
+      key: K,
+      value: CheckInFormState[K]
+    ) {
+      if (key === "hasPurchase") {
+        const hasPurchase = Boolean(value);
+        setPaymentError(false);
         if (!hasPurchase) {
-          return {
+          setSelectedProducts([]);
+          setFormState((current) => ({
             ...current,
             hasPurchase,
             product: "",
             paymentMethod: "NONE",
             amount: "",
-          };
+          }));
+          return;
         }
-        return { ...current, hasPurchase };
+
+        setFormState((current) => ({ ...current, hasPurchase }));
+        return;
+      }
+
+      setFormState((current) => ({ ...current, [key]: value }));
+    }
+
+    function resetForm() {
+      setFormState(createInitialFormState(initialTime));
+      setSelectedProducts([]);
+      setPaymentError(false);
+      setMobileStep(1);
+      setShowNameSuggestions(false);
+    }
+
+    // ─── FIX: handleMobileNext now handles save when on last step ────────────
+    function handleMobileNext() {
+      if (mobileStep === 1 && !formState.name.trim()) return;
+
+      if (formState.hasPurchase && mobileStep === 2) {
+        if (selectedProducts.length === 0) {
+          toast.error("Selecciona al menos un producto");
+          return;
+        }
+        if (formState.paymentMethod === "NONE") {
+          setPaymentError(true);
+          return;
+        }
+      }
+
+      // If already on last step, submit the form
+      if (mobileStep >= totalMobileSteps) {
+        handleAddPerson();
+        return;
+      }
+
+      setMobileStep((current) => Math.min(current + 1, totalMobileSteps));
+    }
+
+    function handleMobileBack() {
+      setMobileStep((current) => Math.max(current - 1, 1));
+    }
+
+    function startEditing(checkIn: CheckIn) {
+      const initialProducts = parseStoredProductList(checkIn.product ?? "");
+      setEditingId(checkIn.id);
+      setConfirmingDelete(false);
+      setEditingState({
+        name: checkIn.name,
+        time: checkIn.time,
+        hasPurchase: checkIn.hasPurchase,
+        product: initialProducts.join(", "),
+        paymentMethod: checkIn.paymentMethod ?? "NONE",
+        amount: checkIn.amount ? String(checkIn.amount) : "",
+        notes: checkIn.notes ?? "",
       });
-      return;
     }
 
-    if (key === "product") {
-      const productName = decodeProductNameFromSelectValue(String(value));
-      if (!productName) return;
-      setEditingState((current) =>
-        current
-          ? {
-            ...current,
-            product: [...parseStoredProductList(current.product), productName].join(", "),
-            amount: String(
-              sumProductsAmount([...parseStoredProductList(current.product), productName])
-            ),
-          }
-          : current
-      );
-      toast.success(`Producto agregado: ${productName}`);
-      return;
-    }
-
-    setEditingState((current) => (current ? { ...current, [key]: value } : current));
-  }
-
-  function removeEditingProductAt(indexToRemove: number) {
-    setEditingState((current) => {
-      if (!current) return current;
-      const nextProducts = parseStoredProductList(current.product).filter(
-        (_, index) => index !== indexToRemove
-      );
-      return {
-        ...current,
-        product: nextProducts.join(", "),
-        amount: String(sumProductsAmount(nextProducts)),
-      };
-    });
-  }
-
-  function removeOneEditingProduct(name: string) {
-    setEditingState((current) => {
-      if (!current) return current;
-      const products = parseStoredProductList(current.product);
-      const indexToRemove = products.indexOf(name);
-      if (indexToRemove < 0) return current;
-      const nextProducts = products.filter((_, index) => index !== indexToRemove);
-      return {
-        ...current,
-        product: nextProducts.join(", "),
-        amount: String(sumProductsAmount(nextProducts)),
-      };
-    });
-  }
-
-  function cancelEditing() {
-    setEditingId(null);
-    setEditingState(null);
-    setConfirmingDelete(false);
-  }
-
-  function saveEditing() {
-    if (!editingId || !editingState) return;
-    const name = editingState.name.trim();
-    const time = editingState.time.trim();
-    if (!name || !time) return;
-    if (editingState.hasPurchase && !editingState.product.trim()) {
-      toast.error("Selecciona un producto de la tienda");
-      return;
-    }
-    if (editingState.hasPurchase && editingState.paymentMethod === "NONE") {
-      toast.error("Selecciona un metodo de pago");
-      return;
-    }
-
-    const original = checkIns.find((item) => item.id === editingId);
-    if (!original) return;
-
-    startTransition(async () => {
-      try {
-        const amountValue = editingState.hasPurchase
-          ? Number(editingState.amount || "0")
-          : 0;
-
-        await updateCheckIn(
-          editingId,
-          toPayload(editingState, formatLocalDateKey(original.datetime))
-        );
-
-        trackEvent("checkin_updated", {
-          has_purchase: editingState.hasPurchase,
-          payment_method:
-            editingState.hasPurchase && editingState.paymentMethod !== "NONE"
-              ? editingState.paymentMethod
-              : "NONE",
-          product_count: parseStoredProductList(editingState.product).length,
-          selected_date: formatLocalDateKey(original.datetime),
-        });
-
-        setCheckIns((current) =>
-          current.map((checkIn) => {
-            if (checkIn.id !== editingId) return checkIn;
-            const datetime = buildCheckInDateTime(
-              formatLocalDateKey(original.datetime),
-              time
-            );
+    function updateEditing<K extends keyof CheckInFormState>(
+      key: K,
+      value: CheckInFormState[K]
+    ) {
+      if (key === "hasPurchase") {
+        const hasPurchase = Boolean(value);
+        setEditingState((current) => {
+          if (!current) return current;
+          if (!hasPurchase) {
             return {
-              ...checkIn,
-              name,
-              time,
-              datetime: datetime.toISOString(),
-              hasPurchase: editingState.hasPurchase,
-              product: editingState.hasPurchase
-                ? editingState.product.trim() || undefined
-                : undefined,
-              paymentMethod:
-                editingState.hasPurchase && editingState.paymentMethod !== "NONE"
-                  ? editingState.paymentMethod
-                  : undefined,
-              amount:
-                editingState.hasPurchase &&
-                  Number.isFinite(amountValue) &&
-                  amountValue > 0
-                  ? amountValue
-                  : undefined,
-              notes: editingState.notes.trim() || undefined,
+              ...current,
+              hasPurchase,
+              product: "",
+              paymentMethod: "NONE",
+              amount: "",
             };
-          })
-        );
-
-        cancelEditing();
-        fireSuccessConfetti();
-        router.refresh();
-      } catch (error) {
-        console.error("Failed to update check-in:", error);
-        toast.error(getCheckInActionErrorMessage(error));
-      }
-    });
-  }
-
-  function handleDeleteCheckIn(id: string, name: string) {
-    startTransition(async () => {
-      try {
-        await deleteCheckIn(id);
-        trackEvent("checkin_deleted", {
-          selected_date: selectedDate,
-        });
-        setCheckIns((current) => current.filter((checkIn) => checkIn.id !== id));
-        if (editingId === id) {
-          cancelEditing();
-        }
-        toast.success(`Se elimino a ${name}`);
-        router.refresh();
-      } catch (error) {
-        console.error("Failed to delete check-in:", error);
-        toast.error(getCheckInActionErrorMessage(error));
-      }
-    });
-  }
-
-  function handleAddPerson() {
-    const name = capitalizeWords(formState.name.trim());
-    const time = formState.time.trim();
-
-    if (!name || !time) return;
-    if (formState.hasPurchase && selectedProducts.length === 0) {
-      toast.error("Selecciona al menos un producto");
-      return;
-    }
-    if (formState.hasPurchase && formState.paymentMethod === "NONE") {
-      setPaymentError(true);
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        const payload = toPayload(
-          {
-            ...formState,
-            name,
-            product: selectedProducts.join(", "),
-            amount: String(selectedProductsTotal),
-          },
-          selectedDate
-        );
-        const createdCheckIn = await addCheckIn(payload);
-        trackEvent("checkin_added", {
-          has_purchase: payload.hasPurchase,
-          payment_method: payload.paymentMethod ?? "NONE",
-          product_count: selectedProducts.length,
-          amount: payload.amount ?? 0,
-          selected_date: selectedDate,
-          matched_member: Boolean(matchedMember),
-        });
-        setCheckIns((current) => [...current, createdCheckIn]);
-        setIsAddOpen(false);
-        resetForm();
-        fireSuccessConfetti();
-        router.refresh();
-      } catch (error) {
-        console.error("Failed to add check-in:", error);
-        toast.error(getCheckInActionErrorMessage(error));
-      }
-    });
-  }
-
-  const metricCards = [
-    {
-      title: "Visitas hoy",
-      value: metrics.visits.toString(),
-      icon: UserRoundCheck,
-      iconShellClassName: "bg-muted/40 border border-border",
-      iconClassName: "text-foreground",
-    },
-    {
-      title: "Ventas hoy",
-      value: metrics.sales.toString(),
-      icon: ShoppingBag,
-      iconShellClassName: "bg-muted/40 border border-border",
-      iconClassName: "text-foreground",
-    },
-    {
-      title: "Total vendido",
-      value: formatAmountCRC(metrics.totalSold),
-      icon: Wallet,
-      iconShellClassName: "bg-primary/12 border border-primary/20",
-      iconClassName: "text-primary",
-      detailLabel: "Ver detalle",
-      onClick: () => {
-        trackEvent("checkin_sales_detail_opened", {
-          selected_date: selectedDate,
-          total_sold: metrics.totalSold,
-          sales_count: metrics.sales,
-        });
-        setIsSalesDetailOpen(true);
-      },
-    },
-    {
-      title: shouldShowMonthlyLeaders
-        ? "Persona con mas asistencias del mes"
-        : "Mas asistencias mes",
-      value: shouldShowMonthlyLeaders
-        ? monthlyLeadersNames
-          ? monthlyRanking.length === 1
-            ? `${monthlyLeadersNames} (${topMonthlyVisits} dias)`
-            : `Empate (${topMonthlyVisits} dias): ${monthlyLeadersNames}`
-          : "-"
-        : "Disponible cuando supere 6 dias",
-      icon: Trophy,
-      iconShellClassName: "bg-muted/40 border border-border",
-      iconClassName: "text-foreground",
-      compact: true,
-    },
-  ];
-
-  const priceCategoriesFromStore: PriceCategory[] = orderedProductGroups.map(
-    ({ category, products: categoryProducts }) => ({
-      title: category,
-      icon:
-        category.toLowerCase().includes("bebida")
-          ? Droplets
-          : category.toLowerCase().includes("membre")
-            ? Dumbbell
-            : Package,
-      items: categoryProducts.map((product) => ({
-        id: product.id,
-        name: product.name,
-        price: formatAmountCRC(product.price),
-      })),
-    })
-  );
-
-  const showInitialEmptyState = filteredCheckIns.length === 0 && !searchTerm.trim();
-
-  return (
-    <main className="mx-auto max-w-7xl space-y-5 px-4 py-8">
-      <Sheet
-        open={isPriceSheetOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            trackEvent("checkin_price_sheet_opened", {
-              product_groups: orderedProductGroups.length,
-            });
           }
-          setIsPriceSheetOpen(open);
-        }}
-      >
-        <SheetContent
-          side="right"
-          className="w-full overflow-y-auto border-border bg-card sm:max-w-md"
-        >
-          <SheetHeader>
-            <SheetTitle className="text-xl">Lista de Precios</SheetTitle>
-            <SheetDescription>
-              Precios actuales de productos y servicios
-            </SheetDescription>
-          </SheetHeader>
+          return { ...current, hasPurchase };
+        });
+        return;
+      }
 
-          <div className="m-2.5 flex flex-col gap-6">
-            {priceCategoriesFromStore.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                No hay productos en tienda. Ve a la ruta Tienda para agregarlos.
-              </div>
-            ) : (
-              priceCategoriesFromStore.map((category) => (
-                <div key={category.title}>
-                  <div className="mb-3 flex items-center gap-2">
+      if (key === "product") {
+        const productName = decodeProductNameFromSelectValue(String(value));
+        if (!productName) return;
+        setEditingState((current) =>
+          current
+            ? {
+              ...current,
+              product: [...parseStoredProductList(current.product), productName].join(", "),
+              amount: String(
+                sumProductsAmount([...parseStoredProductList(current.product), productName])
+              ),
+            }
+            : current
+        );
+        toast.success(`Producto agregado: ${productName}`);
+        return;
+      }
+
+      setEditingState((current) => (current ? { ...current, [key]: value } : current));
+    }
+
+    function removeEditingProductAt(indexToRemove: number) {
+      setEditingState((current) => {
+        if (!current) return current;
+        const nextProducts = parseStoredProductList(current.product).filter(
+          (_, index) => index !== indexToRemove
+        );
+        return {
+          ...current,
+          product: nextProducts.join(", "),
+          amount: String(sumProductsAmount(nextProducts)),
+        };
+      });
+    }
+
+    function removeOneEditingProduct(name: string) {
+      setEditingState((current) => {
+        if (!current) return current;
+        const products = parseStoredProductList(current.product);
+        const indexToRemove = products.indexOf(name);
+        if (indexToRemove < 0) return current;
+        const nextProducts = products.filter((_, index) => index !== indexToRemove);
+        return {
+          ...current,
+          product: nextProducts.join(", "),
+          amount: String(sumProductsAmount(nextProducts)),
+        };
+      });
+    }
+
+    function cancelEditing() {
+      setEditingId(null);
+      setEditingState(null);
+      setConfirmingDelete(false);
+    }
+
+    function saveEditing() {
+      if (!editingId || !editingState) return;
+      const name = editingState.name.trim();
+      const time = editingState.time.trim();
+      if (!name || !time) return;
+      if (editingState.hasPurchase && !editingState.product.trim()) {
+        toast.error("Selecciona un producto de la tienda");
+        return;
+      }
+      if (editingState.hasPurchase && editingState.paymentMethod === "NONE") {
+        toast.error("Selecciona un metodo de pago");
+        return;
+      }
+
+      const original = checkIns.find((item) => item.id === editingId);
+      if (!original) return;
+
+      startTransition(async () => {
+        try {
+          const amountValue = editingState.hasPurchase
+            ? Number(editingState.amount || "0")
+            : 0;
+
+          await updateCheckIn(
+            editingId,
+            toPayload(editingState, formatLocalDateKey(original.datetime))
+          );
+
+          trackEvent("checkin_updated", {
+            has_purchase: editingState.hasPurchase,
+            payment_method:
+              editingState.hasPurchase && editingState.paymentMethod !== "NONE"
+                ? editingState.paymentMethod
+                : "NONE",
+            product_count: parseStoredProductList(editingState.product).length,
+            selected_date: formatLocalDateKey(original.datetime),
+          });
+
+          setCheckIns((current) =>
+            current.map((checkIn) => {
+              if (checkIn.id !== editingId) return checkIn;
+              const datetime = buildCheckInDateTime(
+                formatLocalDateKey(original.datetime),
+                time
+              );
+              return {
+                ...checkIn,
+                name,
+                time,
+                datetime: datetime.toISOString(),
+                hasPurchase: editingState.hasPurchase,
+                product: editingState.hasPurchase
+                  ? editingState.product.trim() || undefined
+                  : undefined,
+                paymentMethod:
+                  editingState.hasPurchase && editingState.paymentMethod !== "NONE"
+                    ? editingState.paymentMethod
+                    : undefined,
+                amount:
+                  editingState.hasPurchase &&
+                    Number.isFinite(amountValue) &&
+                    amountValue > 0
+                    ? amountValue
+                    : undefined,
+                notes: editingState.notes.trim() || undefined,
+              };
+            })
+          );
+
+          cancelEditing();
+          fireSuccessConfetti();
+          router.refresh();
+        } catch (error) {
+          console.error("Failed to update check-in:", error);
+          toast.error(getCheckInActionErrorMessage(error));
+        }
+      });
+    }
+
+    function handleDeleteCheckIn(id: string, name: string) {
+      startTransition(async () => {
+        try {
+          await deleteCheckIn(id);
+          trackEvent("checkin_deleted", {
+            selected_date: selectedDate,
+          });
+          setCheckIns((current) => current.filter((checkIn) => checkIn.id !== id));
+          if (editingId === id) {
+            cancelEditing();
+          }
+          toast.success(`Se elimino a ${name}`);
+          router.refresh();
+        } catch (error) {
+          console.error("Failed to delete check-in:", error);
+          toast.error(getCheckInActionErrorMessage(error));
+        }
+      });
+    }
+
+    function handleAddPerson() {
+      const name = capitalizeWords(formState.name.trim());
+      const time = formState.time.trim();
+
+      if (!name || !time) return;
+      if (formState.hasPurchase && selectedProducts.length === 0) {
+        toast.error("Selecciona al menos un producto");
+        return;
+      }
+      if (formState.hasPurchase && formState.paymentMethod === "NONE") {
+        setPaymentError(true);
+        return;
+      }
+
+      startTransition(async () => {
+        try {
+          const payload = toPayload(
+            {
+              ...formState,
+              name,
+              product: selectedProducts.join(", "),
+              amount: String(selectedProductsTotal),
+            },
+            selectedDate
+          );
+          const createdCheckIn = await addCheckIn(payload);
+          trackEvent("checkin_added", {
+            has_purchase: payload.hasPurchase,
+            payment_method: payload.paymentMethod ?? "NONE",
+            product_count: selectedProducts.length,
+            amount: payload.amount ?? 0,
+            selected_date: selectedDate,
+            matched_member: Boolean(matchedMember),
+          });
+          setCheckIns((current) => [...current, createdCheckIn]);
+          setIsAddOpen(false);
+          resetForm();
+          fireSuccessConfetti();
+          router.refresh();
+        } catch (error) {
+          console.error("Failed to add check-in:", error);
+          toast.error(getCheckInActionErrorMessage(error));
+        }
+      });
+    }
+
+    const metricCards = [
+      {
+        title: "Visitas hoy",
+        value: metrics.visits.toString(),
+        icon: UserRoundCheck,
+        iconShellClassName: "bg-muted/40 border border-border",
+        iconClassName: "text-foreground",
+      },
+      {
+        title: "Ventas hoy",
+        value: metrics.sales.toString(),
+        icon: ShoppingBag,
+        iconShellClassName: "bg-muted/40 border border-border",
+        iconClassName: "text-foreground",
+      },
+      {
+        title: "Total vendido",
+        value: formatAmountCRC(metrics.totalSold),
+        icon: Wallet,
+        iconShellClassName: "bg-primary/12 border border-primary/20",
+        iconClassName: "text-primary",
+        detailLabel: "Ver detalle",
+        onClick: () => {
+          trackEvent("checkin_sales_detail_opened", {
+            selected_date: selectedDate,
+            total_sold: metrics.totalSold,
+            sales_count: metrics.sales,
+          });
+          setIsSalesDetailOpen(true);
+        },
+      },
+      {
+        title: "Mas asistencias del mes",
+        value:
+          monthlyFullRanking.length === 0
+            ? "Sin datos este mes"
+            : monthlyTopThree[0]
+              ? `${monthlyTopThree[0].visits} ${monthlyTopThree[0].visits === 1 ? "día" : "días"} · ${monthlyTopThree[0].name}`
+              : "—",
+        icon: Trophy,
+        iconShellClassName: "bg-primary/12 border border-primary/20 translate-y-1/2",
+        iconClassName: "text-primary",
+        compact: true,
+        openModalButton:
+          monthlyFullRanking.length > 0
+            ? {
+                label: "Ver detalle",
+                onClick: () => {
+                  trackEvent("checkin_monthly_top_detail_opened", { 
+                    selected_date: selectedDate,
+                    month_size: monthlyFullRanking.length,
+                  });
+                  setIsMonthlyTopDetailOpen(true);
+                },
+              }
+            : undefined,
+      },
+    ];
+
+    const priceCategoriesFromStore: PriceCategory[] = orderedProductGroups.map(
+      ({ category, products: categoryProducts }) => ({
+        title: category,
+        icon:
+          category.toLowerCase().includes("bebida")
+            ? Droplets
+            : category.toLowerCase().includes("membre")
+              ? Dumbbell
+              : Package,
+        items: categoryProducts.map((product) => ({
+          id: product.id,
+          name: product.name,
+          price: formatAmountCRC(product.price),
+        })),
+      })
+    );
+
+    const showInitialEmptyState = filteredCheckIns.length === 0 && !searchTerm.trim();
+
+    return (
+      <main className="mx-auto max-w-7xl space-y-5 px-4 py-8">
+        <Sheet
+          open={isPriceSheetOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              trackEvent("checkin_price_sheet_opened", {
+                product_groups: orderedProductGroups.length,
+              });
+            }
+            setIsPriceSheetOpen(open);
+          }}
+        >
+          <SheetContent
+            side="right"
+            className="w-full overflow-y-auto border-border bg-card sm:max-w-md"
+          >
+            <SheetHeader>
+              <SheetTitle className="text-xl">Lista de Precios</SheetTitle>
+              <SheetDescription>
+                Precios actuales de productos y servicios
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="m-2.5 flex flex-col gap-6">
+              {priceCategoriesFromStore.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  No hay productos en tienda. Ve a la ruta Tienda para agregarlos.
+                </div>
+              ) : (
+                priceCategoriesFromStore.map((category) => (
+                  <div key={category.title}>
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                        <category.icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        {category.title}
+                      </h3>
+                    </div>
+                    <div className="overflow-hidden rounded-xl border border-border">
+                      {category.items.map((item, index) => (
+                        <div
+                          key={item.id ?? `${category.title}-${item.name}-${index}`}
+                          className={cn(
+                            "flex items-center justify-between px-4 py-3",
+                            index !== category.items.length - 1 && "border-b border-border"
+                          )}
+                        >
+                          <span className="w-full text-sm text-foreground">{item.name}</span>
+                          <span className="text-sm font-semibold text-primary">{item.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              <div className="mb-6 rounded-xl border border-border p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                      <category.icon className="h-4 w-4 text-primary" />
+                      <Plus className="h-4 w-4 text-primary" />
                     </div>
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      {category.title}
+                      Administrar tienda
                     </h3>
                   </div>
-                  <div className="overflow-hidden rounded-xl border border-border">
-                    {category.items.map((item, index) => (
-                      <div
-                        key={item.id ?? `${category.title}-${item.name}-${index}`}
-                        className={cn(
-                          "flex items-center justify-between px-4 py-3",
-                          index !== category.items.length - 1 && "border-b border-border"
-                        )}
-                      >
-                        <span className="w-full text-sm text-foreground">{item.name}</span>
-                        <span className="text-sm font-semibold text-primary">{item.price}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      trackEvent("checkin_store_redirect_clicked", {
+                        source: "price_sheet",
+                      });
+                      router.push("/dashboard/store");
+                    }}
+                  >
+                    Ir a tienda
+                  </Button>
                 </div>
-              ))
-            )}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
 
-            <div className="mb-6 rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                    <Plus className="h-4 w-4 text-primary" />
-                  </div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Administrar tienda
-                  </h3>
+        {/* ── Add Check-in Dialog ─────────────────────────────────────────────── */}
+        <Dialog open={isSalesDetailOpen} onOpenChange={setIsSalesDetailOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Total vendido</DialogTitle>
+              <DialogDescription>
+                Resumen de ventas del {formatSelectedDate(selectedDate)}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-border bg-card px-4 py-4">
+                  <p className="text-sm text-muted-foreground">Total del dia</p>
+                  <p className="mt-1 text-2xl font-bold text-foreground">
+                    {formatAmountCRC(metrics.totalSold)}
+                  </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    trackEvent("checkin_store_redirect_clicked", {
-                      source: "price_sheet",
-                    });
-                    router.push("/dashboard/store");
-                  }}
-                >
-                  Ir a tienda
-                </Button>
-              </div>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* ── Add Check-in Dialog ─────────────────────────────────────────────── */}
-      <Dialog open={isSalesDetailOpen} onOpenChange={setIsSalesDetailOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Total vendido</DialogTitle>
-            <DialogDescription>
-              Resumen de ventas del {formatSelectedDate(selectedDate)}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-border bg-card px-4 py-4">
-                <p className="text-sm text-muted-foreground">Total del dia</p>
-                <p className="mt-1 text-2xl font-bold text-foreground">
-                  {formatAmountCRC(metrics.totalSold)}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card px-4 py-4">
-                <p className="text-sm text-muted-foreground">Ventas registradas</p>
-                <p className="mt-1 text-2xl font-bold text-foreground">{metrics.sales}</p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card px-4 py-4">
-                <p className="text-sm text-muted-foreground">Promedio por venta</p>
-                <p className="mt-1 text-2xl font-bold text-foreground">
-                  {formatAmountCRC(
-                    metrics.sales > 0 ? Math.round(metrics.totalSold / metrics.sales) : 0
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card">
-              <div className="border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold text-foreground">Totales por metodo de pago</h3>
-              </div>
-              <div className="divide-y divide-border">
-                {salesDetail.totalsByPaymentMethod.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-muted-foreground">
-                    No hay ventas registradas para este dia.
-                  </div>
-                ) : (
-                  salesDetail.totalsByPaymentMethod.map(({ paymentMethod, total }) => (
-                    <div
-                      key={paymentMethod}
-                      className="flex items-center justify-between gap-3 px-4 py-3"
-                    >
-                      <span className="text-sm font-medium text-foreground">{paymentMethod}</span>
-                      <span className="text-sm font-semibold text-primary">
-                        {formatAmountCRC(total)}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card">
-              <div className="border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold text-foreground">Detalle de ventas</h3>
-              </div>
-              <div className="divide-y divide-border">
-                {salesDetail.sales.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-muted-foreground">
-                    Todavia no hay compras cargadas en esta fecha.
-                  </div>
-                ) : (
-                  salesDetail.sales.map((sale) => {
-                    const products = parseStoredProductList(sale.product ?? "");
-
-                    return (
-                      <div key={sale.id} className="space-y-3 px-4 py-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-foreground">{sale.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {sale.time}
-                              {sale.paymentMethod ? ` • ${sale.paymentMethod}` : ""}
-                            </p>
-                          </div>
-                          <p className="text-base font-semibold text-primary">
-                            {formatAmountCRC(sale.amount ?? 0)}
-                          </p>
-                        </div>
-
-                        {products.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {getProductCounts(products).map(({ name, quantity }) => (
-                              <Badge
-                                key={`${sale.id}-${name}`}
-                                variant="outline"
-                                className="border-border bg-background text-foreground"
-                              >
-                                {quantity > 1 ? `${quantity}x ` : ""}
-                                {name}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isAddOpen}
-        onOpenChange={(open) => {
-          setIsAddOpen(open);
-          if (!open) resetForm();
-        }}
-      >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Agregar persona</DialogTitle>
-            <DialogDescription>
-              Registra una nueva entrada al gimnasio
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Progress indicator */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                Paso {mobileStep} de {totalMobileSteps}
-              </span>
-              <span>{formState.hasPurchase ? "Entrada con compra" : "Entrada simple"}</span>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                {getMobileStepTitle(mobileStep, formState.hasPurchase)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {mobileStep === 1
-                  ? "Completa los datos base del check-in."
-                  : mobileStep === 2 && formState.hasPurchase
-                    ? "Agrega productos y define el metodo de pago."
-                    : "Agrega notas opcionales antes de guardar."}
-              </p>
-            </div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${totalMobileSteps}, 1fr)` }}>
-              {Array.from({ length: totalMobileSteps }, (_, index) => {
-                const step = index + 1;
-                return (
-                  <div
-                    key={step}
-                    className={cn(
-                      "h-2 rounded-full transition-colors",
-                      step <= mobileStep ? "bg-primary" : "bg-muted"
+                <div className="rounded-2xl border border-border bg-card px-4 py-4">
+                  <p className="text-sm text-muted-foreground">Ventas registradas</p>
+                  <p className="mt-1 text-2xl font-bold text-foreground">{metrics.sales}</p>
+                </div>
+                <div className="rounded-2xl border border-border bg-card px-4 py-4">
+                  <p className="text-sm text-muted-foreground">Promedio por venta</p>
+                  <p className="mt-1 text-2xl font-bold text-foreground">
+                    {formatAmountCRC(
+                      metrics.sales > 0 ? Math.round(metrics.totalSold / metrics.sales) : 0
                     )}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── Step 1: Datos ──────────────────────────────────────────────── */}
-          <div className={cn("space-y-4", mobileStep === 1 ? "block" : "hidden")}>
-            <div className="space-y-2">
-              <Label htmlFor="checkin-name">Nombre *</Label>
-              <div className="flex items-start gap-3">
-                {matchedMember ? (
-                  <Avatar className="mt-0.5 size-14 shrink-0 rounded-2xl border border-border">
-                    <AvatarImage
-                      src={matchedMemberPhotoUrl || undefined}
-                      alt={matchedMember.name}
-                    />
-                    <AvatarFallback className="rounded-2xl text-sm font-semibold">
-                      {getInitials(matchedMember.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : null}
-                <div className="relative min-w-0 flex-1">
-                  <Input
-                    id="checkin-name"
-                    value={formState.name}
-                    onChange={(event) => {
-                      updateForm("name", event.target.value);
-                      setShowNameSuggestions(true);
-                    }}
-                    onFocus={() => setShowNameSuggestions(true)}
-                    onBlur={() => {
-                      setTimeout(() => setShowNameSuggestions(false), 120);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        setShowNameSuggestions(false);
-                      }
-                      if (event.key === "Enter" && shouldShowNameSuggestions) {
-                        event.preventDefault();
-                        const firstSuggestion = memberNameSuggestions[0];
-                        if (firstSuggestion) {
-                          updateForm("name", firstSuggestion);
-                          setShowNameSuggestions(false);
-                        }
-                      }
-                    }}
-                    placeholder="Nombre de la persona"
-                    autoComplete="off"
-                    required
-                    className="border-border bg-background"
-                  />
-                  {shouldShowNameSuggestions ? (
-                    <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-background shadow-md">
-                      <ul className="max-h-48 overflow-y-auto py-1">
-                        {memberNameSuggestions.map((name) => (
-                          <li key={name}>
-                            <button
-                              type="button"
-                              className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/60"
-                              onMouseDown={(event) => {
-                                event.preventDefault();
-                                updateForm("name", name);
-                                setShowNameSuggestions(false);
-                              }}
-                            >
-                              {name}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              {matchedMember ? (
-                <div className="rounded-xl border border-border bg-card/70 px-3 py-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={cn("capitalize", getMemberStatusClasses(matchedMember.status))}
-                    >
-                      {matchedMember.status}
-                    </Badge>
-                    <Badge variant="outline" className="border-border">
-                      Left {matchedMember.days_remaining} dias
-                    </Badge>
-                    <Badge variant="outline" className="border-border">
-                      {disciplineLabels[matchedMember.discipline]}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Coincide con miembro: {matchedMember.name}
                   </p>
                 </div>
-              ) : null}
-              {monthlyAttendanceForTypedName ? (
-                <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-foreground">
-                      {monthlyAttendanceForTypedName.visits}{" "}
-                      {monthlyAttendanceForTypedName.visits === 1 ? "visita" : "visitas"} este
-                      mes
-                    </p>
-                    <Badge variant="outline" className="border-primary/20 bg-background text-primary">
-                      {selectedDate.slice(0, 7)}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {monthlyAttendanceForTypedName.name}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label>¿Realizó una compra?</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => updateForm("hasPurchase", false)}
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-4 transition-all",
-                    !formState.hasPurchase
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
-                  )}
-                >
-                  <User className="h-6 w-6" />
-                  <span className="font-medium">Solo entrada</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateForm("hasPurchase", true)}
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-4 transition-all",
-                    formState.hasPurchase
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
-                  )}
-                >
-                  <ShoppingBag className="h-6 w-6" />
-                  <span className="font-medium">Con compra</span>
-                </button>
               </div>
-            </div>
-          </div>
 
-          {/* ── Step 2 (with purchase): Compra ─────────────────────────────── */}
-          {formState.hasPurchase && (
-            <div className={cn("space-y-3", mobileStep === 2 ? "block" : "hidden")}>
-              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="checkin-product" className="text-sm font-semibold">
-                    Productos
-                  </Label>
-                  <span className="text-xs text-muted-foreground">
-                    {selectedProducts.length} seleccionados
-                  </span>
+              <div className="rounded-2xl border border-border bg-card">
+                <div className="border-b border-border px-4 py-3">
+                  <h3 className="text-sm font-semibold text-foreground">Totales por metodo de pago</h3>
                 </div>
-                <div className="min-h-[50px] rounded-xl border border-border bg-background px-3 py-2">
-                  {selectedProducts.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedProductCounts.map(({ name, quantity }) => (
-                        <Badge
-                          key={name}
-                          variant="secondary"
-                          className="rounded-full border border-lime-200 bg-lime-100 px-3 py-1 text-lime-700"
-                        >
-                          <span>{name}{quantity > 1 ? ` x${quantity}` : ""}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeOneSelectedProduct(name)}
-                            className="ml-1 rounded-full text-lime-700/80 transition hover:bg-accent hover:text-lime-900 dark:text-lime-300/90 dark:hover:text-lime-200"
-                            aria-label={`Quitar 1 ${name}`}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
+                <div className="divide-y divide-border">
+                  {salesDetail.totalsByPaymentMethod.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-muted-foreground">
+                      No hay ventas registradas para este dia.
                     </div>
                   ) : (
-                    <span className="text-sm text-muted-foreground">
-                      No hay productos agregados
-                    </span>
+                    salesDetail.totalsByPaymentMethod.map(({ paymentMethod, total }) => (
+                      <div
+                        key={paymentMethod}
+                        className="flex items-center justify-between gap-3 px-4 py-3"
+                      >
+                        <span className="text-sm font-medium text-foreground">{paymentMethod}</span>
+                        <span className="text-sm font-semibold text-primary">
+                          {formatAmountCRC(total)}
+                        </span>
+                      </div>
+                    ))
                   )}
                 </div>
-                {activeProducts.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-2">
-                        <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
-                          <ShoppingBag className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            No hay productos en tienda
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Agrega productos para seleccionarlos en el check-in.
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="rounded-lg"
-                        onClick={() => {
-                          trackEvent("checkin_store_redirect_clicked", {
-                            source: "add_dialog",
-                          });
-                          router.push("/dashboard/store");
-                        }}
-                      >
-                        Abrir tienda
-                      </Button>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card">
+                <div className="border-b border-border px-4 py-3">
+                  <h3 className="text-sm font-semibold text-foreground">Detalle de ventas</h3>
+                </div>
+                <div className="divide-y divide-border">
+                  {salesDetail.sales.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-muted-foreground">
+                      Todavia no hay compras cargadas en esta fecha.
                     </div>
-                  </div>
-                ) : (
-                  <Select
-                    key={`add-product-select-${selectedProducts.length}`}
-                    value={undefined}
-                    onValueChange={addSelectedProduct}
+                  ) : (
+                    salesDetail.sales.map((sale) => {
+                      const products = parseStoredProductList(sale.product ?? "");
+
+                      return (
+                        <div key={sale.id} className="space-y-3 px-4 py-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-foreground">{sale.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {sale.time}
+                                {sale.paymentMethod ? ` • ${sale.paymentMethod}` : ""}
+                              </p>
+                            </div>
+                            <p className="text-base font-semibold text-primary">
+                              {formatAmountCRC(sale.amount ?? 0)}
+                            </p>
+                          </div>
+
+                          {products.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {getProductCounts(products).map(({ name, quantity }) => (
+                                <Badge
+                                  key={`${sale.id}-${name}`}
+                                  variant="outline"
+                                  className="border-border bg-background text-foreground"
+                                >
+                                  {quantity > 1 ? `${quantity}x ` : ""}
+                                  {name}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isMonthlyTopDetailOpen} onOpenChange={setIsMonthlyTopDetailOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Top 3 asistencias del mes</DialogTitle>
+              <DialogDescription>
+                {formatMonthLabel(selectedDate)} — Cada visita cuenta si hubo al menos un check-in
+              </DialogDescription>
+            </DialogHeader>
+
+            {monthlyTopThree.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay check-ins en este mes todavía.</p>
+            ) : (
+              <ol className="space-y-3">
+                {monthlyTopThree.map((entry: AttendanceRankingEntry, index: number) => (
+                  <li
+                    key={entry.name}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3"
                   >
-                    <SelectTrigger id="checkin-product" className="h-11 w-full rounded-xl border-border bg-background shadow-none">
-                      <SelectValue placeholder="Agregar producto" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                      {orderedProductGroups.map((group, index) => (
-                        <SelectGroup key={group.category}>
-                          <SelectLabel className="px-2 py-1 text-[11.2px] font-semibold uppercase tracking-wide text-muted-foreground text-center">
-                            {group.category}
-                          </SelectLabel>
-                          {group.products.map((product) => (
-                            <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
-                              {product.name}
-                            </SelectItem>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/12 text-sm font-bold text-primary">
+                        {index + 1}
+                      </span>
+                      <span className="truncate font-medium text-foreground">{entry.name}</span>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                      {entry.visits} {entry.visits === 1 ? "día" : "días"}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {monthlyFullRanking.length > 3 ? (
+              <p className="text-xs text-muted-foreground">
+                +{monthlyFullRanking.length - 3} persona
+                {monthlyFullRanking.length - 3 === 1 ? "" : "s"} más en el mes con menos días
+                de asistencia.
+              </p>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isAddOpen}
+          onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) resetForm();
+          }}
+        >
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Agregar persona</DialogTitle>
+              <DialogDescription>
+                Registra una nueva entrada al gimnasio
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Progress indicator */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  Paso {mobileStep} de {totalMobileSteps}
+                </span>
+                <span>{formState.hasPurchase ? "Entrada con compra" : "Entrada simple"}</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {getMobileStepTitle(mobileStep, formState.hasPurchase)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {mobileStep === 1
+                    ? "Completa los datos base del check-in."
+                    : mobileStep === 2 && formState.hasPurchase
+                      ? "Agrega productos y define el metodo de pago."
+                      : "Agrega notas opcionales antes de guardar."}
+                </p>
+              </div>
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${totalMobileSteps}, 1fr)` }}>
+                {Array.from({ length: totalMobileSteps }, (_, index) => {
+                  const step = index + 1;
+                  return (
+                    <div
+                      key={step}
+                      className={cn(
+                        "h-2 rounded-full transition-colors",
+                        step <= mobileStep ? "bg-primary" : "bg-muted"
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Step 1: Datos ──────────────────────────────────────────────── */}
+            <div className={cn("space-y-4", mobileStep === 1 ? "block" : "hidden")}>
+              <div className="space-y-2">
+                <Label htmlFor="checkin-name">Nombre *</Label>
+                <div className="flex items-start gap-3">
+                  {matchedMember ? (
+                    <Avatar className="mt-0.5 size-14 shrink-0 rounded-2xl border border-border">
+                      <AvatarImage
+                        src={matchedMemberPhotoUrl || undefined}
+                        alt={matchedMember.name}
+                      />
+                      <AvatarFallback className="rounded-2xl text-sm font-semibold">
+                        {getInitials(matchedMember.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : null}
+                  <div className="relative min-w-0 flex-1">
+                    <Input
+                      id="checkin-name"
+                      value={formState.name}
+                      onChange={(event) => {
+                        updateForm("name", event.target.value);
+                        setShowNameSuggestions(true);
+                      }}
+                      onFocus={() => setShowNameSuggestions(true)}
+                      onBlur={() => {
+                        setTimeout(() => setShowNameSuggestions(false), 120);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setShowNameSuggestions(false);
+                        }
+                        if (event.key === "Enter" && shouldShowNameSuggestions) {
+                          event.preventDefault();
+                          const firstSuggestion = memberNameSuggestions[0];
+                          if (firstSuggestion) {
+                            updateForm("name", firstSuggestion);
+                            setShowNameSuggestions(false);
+                          }
+                        }
+                      }}
+                      placeholder="Nombre de la persona"
+                      autoComplete="off"
+                      required
+                      className="border-border bg-background"
+                    />
+                    {shouldShowNameSuggestions ? (
+                      <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-border bg-background shadow-md">
+                        <ul className="max-h-48 overflow-y-auto py-1">
+                          {memberNameSuggestions.map((name) => (
+                            <li key={name}>
+                              <button
+                                type="button"
+                                className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/60"
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  updateForm("name", name);
+                                  setShowNameSuggestions(false);
+                                }}
+                              >
+                                {name}
+                              </button>
+                            </li>
                           ))}
-                          {index < orderedProductGroups.length - 1 ? <SelectSeparator /> : null}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                {matchedMember ? (
+                  <div className="rounded-xl border border-border bg-card/70 px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={cn("capitalize", getMemberStatusClasses(matchedMember.status))}
+                      >
+                        {matchedMember.status}
+                      </Badge>
+                      <Badge variant="outline" className="border-border">
+                        Left {matchedMember.days_remaining} dias
+                      </Badge>
+                      <Badge variant="outline" className="border-border">
+                        {disciplineLabels[matchedMember.discipline]}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Coincide con miembro: {matchedMember.name}
+                    </p>
+                  </div>
+                ) : null}
+                {monthlyAttendanceForTypedName ? (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {monthlyAttendanceForTypedName.visits}{" "}
+                        {monthlyAttendanceForTypedName.visits === 1 ? "visita" : "visitas"} este
+                        mes
+                      </p>
+                      <Badge variant="outline" className="border-primary/20 bg-background text-primary">
+                        {selectedDate.slice(0, 7)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {monthlyAttendanceForTypedName.name}
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="checkin-payment">Método de Pago *</Label>
-                <Select
-                  value={formState.paymentMethod}
-                  onValueChange={(value) => {
-                    setPaymentError(false);
-                    updateForm("paymentMethod", value as PaymentMethodValue);
-                  }}
-                >
-                  <SelectTrigger
-                    id="checkin-payment"
+                <Label>¿Realizó una compra?</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => updateForm("hasPurchase", false)}
                     className={cn(
-                      "h-11 w-fit min-w-[182px] rounded-xl bg-background shadow-none",
-                      paymentError ? "border-destructive" : "border-border"
+                      "flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-4 transition-all",
+                      !formState.hasPurchase
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
                     )}
                   >
-                    <SelectValue placeholder="Seleccionar metodo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TARJETA">TARJETA</SelectItem>
-                    <SelectItem value="EFECTIVO">EFECTIVO</SelectItem>
-                    <SelectItem value="SINPE">SINPE</SelectItem>
-                  </SelectContent>
-                </Select>
-                {paymentError ? (
-                  <p className="text-xs text-destructive">
-                    Selecciona un metodo de pago.
-                  </p>
-                ) : null}
+                    <User className="h-6 w-6" />
+                    <span className="font-medium">Solo entrada</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateForm("hasPurchase", true)}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-4 transition-all",
+                      formState.hasPurchase
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <ShoppingBag className="h-6 w-6" />
+                    <span className="font-medium">Con compra</span>
+                  </button>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* ── Step: Notas (last step always) ─────────────────────────────── */}
-          {/* 
-            FIX: This step is shown when:
-            - hasPurchase=true  AND mobileStep=3  (last step)
-            - hasPurchase=false AND mobileStep=2  (last step)
-            In both cases mobileStep === totalMobileSteps covers it.
-          */}
-          <div className={cn("space-y-2", mobileStep === totalMobileSteps ? "block" : "hidden")}>
-            <Label htmlFor="checkin-notes">Notas (opcional)</Label>
-            <Textarea
-              id="checkin-notes"
-              value={formState.notes}
-              onChange={(event) => updateForm("notes", event.target.value)}
-              placeholder="Notas adicionales..."
-              rows={3}
-              className="resize-none rounded-2xl border-border bg-background shadow-none"
-            />
-          </div>
-
-          {/* ── Dialog action buttons ───────────────────────────────────────── */}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="flex-1"
-              onClick={
-                mobileStep === 1
-                  ? () => {
-                    setIsAddOpen(false);
-                    resetForm();
-                  }
-                  : handleMobileBack
-              }
-            >
-              {mobileStep === 1 ? "Cancelar" : "Atrás"}
-            </Button>
-
-            {/* ── FIX: single button handles both Next and Save ── */}
-            <Button
-              type="button"
-              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={
-                isPending ||
-                (mobileStep === 1 && !formState.name.trim()) ||
-                !formState.time.trim()
-              }
-              onClick={handleMobileNext}
-            >
-              {mobileStep >= totalMobileSteps ? "Guardar" : "Siguiente"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Top toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            className="h-10 w-full rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:w-auto"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="h-[18px] w-[18px]" />
-            Agregar persona
-          </Button>
-          {!showInitialEmptyState ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 w-full rounded-2xl border-border bg-background text-foreground sm:w-auto"
-              onClick={() => setIsPriceSheetOpen(true)}
-            >
-              Ver precios actuales
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex h-10 w-full items-center gap-1 rounded-2xl border border-border/70 bg-card/85 px-2 shadow-sm backdrop-blur sm:w-auto">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full text-foreground hover:bg-accent/70"
-              onClick={() =>
-                setSelectedDate((current) => {
-                  const nextDate = shiftDateKey(current, -1);
-                  trackEvent("checkin_date_changed", {
-                    direction: "previous",
-                    selected_date: nextDate,
-                  });
-                  return nextDate;
-                })
-              }
-            >
-              <ChevronLeft className="h-[18px] w-[18px]" />
-            </Button>
-            {isMounted ? (
-              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center hover:bg-accent/60 sm:min-w-[220px] sm:flex-none"
-                  >
-                    <div className="flex w-full items-center justify-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate text-sm font-semibold text-foreground sm:text-base">
-                        {formatSelectedDate(selectedDate)}
+            {/* ── Step 2 (with purchase): Compra ─────────────────────────────── */}
+            {formState.hasPurchase && (
+              <div className={cn("space-y-3", mobileStep === 2 ? "block" : "hidden")}>
+                <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="checkin-product" className="text-sm font-semibold">
+                      Productos
+                    </Label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedProducts.length} seleccionados
+                    </span>
+                  </div>
+                  <div className="min-h-[50px] rounded-xl border border-border bg-background px-3 py-2">
+                    {selectedProducts.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProductCounts.map(({ name, quantity }) => (
+                          <Badge
+                            key={name}
+                            variant="secondary"
+                            className="rounded-full border border-lime-200 bg-lime-100 px-3 py-1 text-lime-700"
+                          >
+                            <span>{name}{quantity > 1 ? ` x${quantity}` : ""}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeOneSelectedProduct(name)}
+                              className="ml-1 rounded-full text-lime-700/80 transition hover:bg-accent hover:text-lime-900 dark:text-lime-300/90 dark:hover:text-lime-200"
+                              aria-label={`Quitar 1 ${name}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        No hay productos agregados
                       </span>
+                    )}
+                  </div>
+                  {activeProducts.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2">
+                          <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+                            <ShoppingBag className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">
+                              No hay productos en tienda
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Agrega productos para seleccionarlos en el check-in.
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="rounded-lg"
+                          onClick={() => {
+                            trackEvent("checkin_store_redirect_clicked", {
+                              source: "add_dialog",
+                            });
+                            router.push("/dashboard/store");
+                          }}
+                        >
+                          Abrir tienda
+                        </Button>
+                      </div>
                     </div>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="center"
-                  className="w-[min(92vw,300px)] rounded-[1.25rem] border-border/70 bg-card/95 p-2.5 shadow-xl backdrop-blur"
-                >
-                  <Calendar
-                    mode="single"
-                    selected={dateKeyToDate(selectedDate)}
-                    onSelect={(date) => {
-                      if (!date) return;
-                      const nextDate = formatLocalDateKey(date);
-                      trackEvent("checkin_date_changed", {
-                        source: "calendar",
-                        selected_date: nextDate,
-                      });
-                      setSelectedDate(nextDate);
-                      setCalendarOpen(false);
-                    }}
-                    className="mx-auto rounded-xl text-sm [--cell-size:2rem]"
-                    classNames={{
-                      month: "flex flex-col w-full gap-2.5",
-                      month_caption: "flex items-center justify-center h-8 w-full px-8",
-                      caption_label: "text-sm font-semibold",
-                      nav: "flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between",
-                      button_previous:
-                        "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
-                      button_next:
-                        "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
-                      weekdays: "mt-0.5 flex",
-                      weekday:
-                        "text-muted-foreground rounded-md flex-1 text-[11px] font-medium uppercase tracking-[0.08em]",
-                      week: "mt-0.5 flex w-full",
-                    }}
-                  />
-                  <div className="mt-2.5 flex gap-2 border-t border-border/70 pt-2.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 flex-1 rounded-xl"
-                      onClick={() => {
-                        trackEvent("checkin_date_changed", {
-                          source: "jump",
-                          selected_date: initialDateKey,
-                        });
-                        setSelectedDate(initialDateKey);
-                        setCalendarOpen(false);
-                      }}
+                  ) : (
+                    <Select
+                      key={`add-product-select-${selectedProducts.length}`}
+                      value={undefined}
+                      onValueChange={addSelectedProduct}
                     >
-                      Hoy
-                    </Button>
+                      <SelectTrigger id="checkin-product" className="h-11 w-full rounded-xl border-border bg-background shadow-none">
+                        <SelectValue placeholder="Agregar producto" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80">
+                        {orderedProductGroups.map((group, index) => (
+                          <SelectGroup key={group.category}>
+                            <SelectLabel className="px-2 py-1 text-[11.2px] font-semibold uppercase tracking-wide text-muted-foreground text-center">
+                              {group.category}
+                            </SelectLabel>
+                            {group.products.map((product) => (
+                              <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
+                                {product.name}
+                              </SelectItem>
+                            ))}
+                            {index < orderedProductGroups.length - 1 ? <SelectSeparator /> : null}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="checkin-payment">Método de Pago *</Label>
+                  <Select
+                    value={formState.paymentMethod}
+                    onValueChange={(value) => {
+                      setPaymentError(false);
+                      updateForm("paymentMethod", value as PaymentMethodValue);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="checkin-payment"
+                      className={cn(
+                        "h-11 w-fit min-w-[182px] rounded-xl bg-background shadow-none",
+                        paymentError ? "border-destructive" : "border-border"
+                      )}
+                    >
+                      <SelectValue placeholder="Seleccionar metodo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TARJETA">TARJETA</SelectItem>
+                      <SelectItem value="EFECTIVO">EFECTIVO</SelectItem>
+                      <SelectItem value="SINPE">SINPE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {paymentError ? (
+                    <p className="text-xs text-destructive">
+                      Selecciona un metodo de pago.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            {/* ── Step: Notas (last step always) ─────────────────────────────── */}
+            {/* 
+              FIX: This step is shown when:
+              - hasPurchase=true  AND mobileStep=3  (last step)
+              - hasPurchase=false AND mobileStep=2  (last step)
+              In both cases mobileStep === totalMobileSteps covers it.
+            */}
+            <div className={cn("space-y-2", mobileStep === totalMobileSteps ? "block" : "hidden")}>
+              <Label htmlFor="checkin-notes">Notas (opcional)</Label>
+              <Textarea
+                id="checkin-notes"
+                value={formState.notes}
+                onChange={(event) => updateForm("notes", event.target.value)}
+                placeholder="Notas adicionales..."
+                rows={3}
+                className="resize-none rounded-2xl border-border bg-background shadow-none"
+              />
+            </div>
+
+            {/* ── Dialog action buttons ───────────────────────────────────────── */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1"
+                onClick={
+                  mobileStep === 1
+                    ? () => {
+                      setIsAddOpen(false);
+                      resetForm();
+                    }
+                    : handleMobileBack
+                }
+              >
+                {mobileStep === 1 ? "Cancelar" : "Atrás"}
+              </Button>
+
+              {/* ── FIX: single button handles both Next and Save ── */}
+              <Button
+                type="button"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={
+                  isPending ||
+                  (mobileStep === 1 && !formState.name.trim()) ||
+                  !formState.time.trim()
+                }
+                onClick={handleMobileNext}
+              >
+                {mobileStep >= totalMobileSteps ? "Guardar" : "Siguiente"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Top toolbar ─────────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              className="h-10 w-full rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:w-auto"
+              onClick={() => setIsAddOpen(true)}
+            >
+              <Plus className="h-[18px] w-[18px]" />
+              Agregar persona
+            </Button>
+            {!showInitialEmptyState ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full rounded-2xl border-border bg-background text-foreground sm:w-auto"
+                onClick={() => setIsPriceSheetOpen(true)}
+              >
+                Ver precios actuales
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex h-10 w-full items-center gap-1 rounded-2xl border border-border/70 bg-card/85 px-2 shadow-sm backdrop-blur sm:w-auto">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-full text-foreground hover:bg-accent/70"
+                onClick={() =>
+                  setSelectedDate((current) => {
+                    const nextDate = shiftDateKey(current, -1);
+                    trackEvent("checkin_date_changed", {
+                      direction: "previous",
+                      selected_date: nextDate,
+                    });
+                    return nextDate;
+                  })
+                }
+              >
+                <ChevronLeft className="h-[18px] w-[18px]" />
+              </Button>
+              {isMounted ? (
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
                     <Button
                       type="button"
-                      variant="outline"
-                      className="h-9 flex-1 rounded-xl"
-                      onClick={() => {
-                        const nextDate = shiftDateKey(initialDateKey, -1);
+                      variant="ghost"
+                      className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center hover:bg-accent/60 sm:min-w-[220px] sm:flex-none"
+                    >
+                      <div className="flex w-full items-center justify-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate text-sm font-semibold text-foreground sm:text-base">
+                          {formatSelectedDate(selectedDate)}
+                        </span>
+                      </div>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="center"
+                    className="w-[min(92vw,300px)] rounded-[1.25rem] border-border/70 bg-card/95 p-2.5 shadow-xl backdrop-blur"
+                  >
+                    <Calendar
+                      mode="single"
+                      selected={dateKeyToDate(selectedDate)}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        const nextDate = formatLocalDateKey(date);
                         trackEvent("checkin_date_changed", {
-                          source: "jump",
+                          source: "calendar",
                           selected_date: nextDate,
                         });
                         setSelectedDate(nextDate);
                         setCalendarOpen(false);
                       }}
-                    >
-                      Ayer
-                    </Button>
+                      className="mx-auto rounded-xl text-sm [--cell-size:2rem]"
+                      classNames={{
+                        month: "flex flex-col w-full gap-2.5",
+                        month_caption: "flex items-center justify-center h-8 w-full px-8",
+                        caption_label: "text-sm font-semibold",
+                        nav: "flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between",
+                        button_previous:
+                          "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
+                        button_next:
+                          "size-8 rounded-full border border-transparent hover:border-border hover:bg-accent/50",
+                        weekdays: "mt-0.5 flex",
+                        weekday:
+                          "text-muted-foreground rounded-md flex-1 text-[11px] font-medium uppercase tracking-[0.08em]",
+                        week: "mt-0.5 flex w-full",
+                      }}
+                    />
+                    <div className="mt-2.5 flex gap-2 border-t border-border/70 pt-2.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 flex-1 rounded-xl"
+                        onClick={() => {
+                          trackEvent("checkin_date_changed", {
+                            source: "jump",
+                            selected_date: initialDateKey,
+                          });
+                          setSelectedDate(initialDateKey);
+                          setCalendarOpen(false);
+                        }}
+                      >
+                        Hoy
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 flex-1 rounded-xl"
+                        onClick={() => {
+                          const nextDate = shiftDateKey(initialDateKey, -1);
+                          trackEvent("checkin_date_changed", {
+                            source: "jump",
+                            selected_date: nextDate,
+                          });
+                          setSelectedDate(nextDate);
+                          setCalendarOpen(false);
+                        }}
+                      >
+                        Ayer
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center sm:min-w-[220px] sm:flex-none"
+                  disabled
+                >
+                  <div className="flex w-full items-center justify-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate text-sm font-semibold text-foreground sm:text-base">
+                      {formatSelectedDate(selectedDate)}
+                    </span>
                   </div>
-                </PopoverContent>
-              </Popover>
-            ) : (
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
-                className="h-9 min-w-0 flex-1 rounded-xl px-3 text-center sm:min-w-[220px] sm:flex-none"
-                disabled
+                size="icon-sm"
+                className="rounded-full text-foreground hover:bg-accent/70"
+                onClick={() =>
+                  setSelectedDate((current) => {
+                    const nextDate = shiftDateKey(current, 1);
+                    trackEvent("checkin_date_changed", {
+                      direction: "next",
+                      selected_date: nextDate,
+                    });
+                    return nextDate;
+                  })
+                }
               >
-                <div className="flex w-full items-center justify-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate text-sm font-semibold text-foreground sm:text-base">
-                    {formatSelectedDate(selectedDate)}
-                  </span>
-                </div>
+                <ChevronRight className="h-[18px] w-[18px]" />
               </Button>
-            )}
+            </div>
             <Button
               type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full text-foreground hover:bg-accent/70"
-              onClick={() =>
-                setSelectedDate((current) => {
-                  const nextDate = shiftDateKey(current, 1);
-                  trackEvent("checkin_date_changed", {
-                    direction: "next",
-                    selected_date: nextDate,
-                  });
-                  return nextDate;
-                })
-              }
+              variant="outline"
+              className="h-10 w-full rounded-2xl border-border bg-background text-foreground sm:w-auto"
+              onClick={() => {
+                trackEvent("checkin_date_changed", {
+                  source: "today",
+                  selected_date: initialDateKey,
+                });
+                setSelectedDate(initialDateKey);
+              }}
             >
-              <ChevronRight className="h-[18px] w-[18px]" />
+              Ir a hoy
             </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 w-full rounded-2xl border-border bg-background text-foreground sm:w-auto"
-            onClick={() => {
-              trackEvent("checkin_date_changed", {
-                source: "today",
-                selected_date: initialDateKey,
-              });
-              setSelectedDate(initialDateKey);
-            }}
-          >
-            Ir a hoy
-          </Button>
         </div>
-      </div>
 
-      {/* ── Metric cards ────────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {metricCards.map((card) => (
-          <button
-            key={card.title}
-            type="button"
-            onClick={card.onClick}
-            className={cn(
-              "flex min-h-[80px] items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 text-left sm:min-h-[88px] sm:gap-4",
-              card.onClick && "transition-colors hover:bg-accent/40",
-              card.detailLabel && "border-primary/25 bg-primary/5 shadow-sm hover:bg-primary/10"
-            )}
-          >
-            <div
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl sm:h-10 sm:w-10",
-                card.iconShellClassName
-              )}
-            >
-              <card.icon className={cn("h-[18px] w-[18px] sm:h-[22px] sm:w-[22px]", card.iconClassName)} />
-            </div>
-            <div className={cn("flex-1", card.compact && "min-w-0")}>
-              <p
+        {/* ── Metric cards ────────────────────────────────────────────────────── */}
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {metricCards.map((card) => {
+            if ("openModalButton" in card && card.openModalButton) {
+              return (
+                <div
+                  key={card.title}
+                  className="flex min-h-[88px] flex-col rounded-2xl border border-primary/25 bg-primary/5 px-4 py-4 shadow-sm"
+                >
+                  <div className="flex flex-1 items-start gap-3 sm:gap-4">
+                    <div
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10",
+                        card.iconShellClassName
+                      )}
+                    >
+                      <card.icon
+                        className={cn("h-4 w-4 sm:h-[18px] sm:w-[18px]", card.iconClassName)}
+                      />
+                    </div>
+                    <div className={cn("flex min-w-0 flex-1 flex-col", card.compact && "min-w-0")}>
+                      <p
+                        className={cn(
+                          "truncate text-base font-semibold tabular-nums leading-snug tracking-tight text-foreground sm:text-sm",
+                          card.compact && "min-w-0"
+                        )}
+                      >
+                        {card.value}
+                      </p>
+                      <p className="text-xs leading-normal text-muted-foreground sm:text-sm">{card.title}</p>
+                      <button
+                        type="button"
+                        onClick={card.openModalButton.onClick}
+                        className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary/20 bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      >
+                        <span>{card.openModalButton.label}</span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={card.title}
+                type="button"
+                onClick={card.onClick}
                 className={cn(
-                  "font-bold text-foreground",
-                  card.compact
-                    ? "truncate text-sm font-semibold"
-                    : "text-xl sm:text-2xl"
+                  "flex min-h-[80px] items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 text-left sm:min-h-[88px] sm:gap-4",
+                  card.onClick && "transition-colors hover:bg-accent/40",
+                  card.detailLabel && "border-primary/25 bg-primary/5 shadow-sm hover:bg-primary/10"
                 )}
               >
-                {card.value}
-              </p>
-              <p className="text-sm text-muted-foreground">{card.title}</p>
-              {card.detailLabel ? (
-                <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
-                  <span>{card.detailLabel}</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
+                <div
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-xl sm:h-10 sm:w-10",
+                    card.iconShellClassName
+                  )}
+                >
+                  <card.icon className={cn("h-4 w-4 sm:h-[18px] sm:w-[18px]", card.iconClassName)} />
                 </div>
-              ) : null}
-            </div>
-          </button>
-        ))}
-      </section>
+                <div className={cn("flex-1", card.compact && "min-w-0")}>
+                  <p
+                    className={cn(
+                      "font-semibold tabular-nums leading-snug text-foreground",
+                      card.compact
+                        ? "truncate text-sm"
+                        : "text-base sm:text-lg"
+                    )}
+                  >
+                    {card.value}
+                  </p>
+                  <p className="text-xs leading-normal text-muted-foreground sm:text-sm">{card.title}</p>
+                  {card.detailLabel ? (
+                    <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
+                      <span>{card.detailLabel}</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </div>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
+        </section>
 
-      {/* ── Search ──────────────────────────────────────────────────────────── */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Buscar por nombre..."
-          className="h-10 rounded-[14px] border-border bg-background pl-11 text-base text-foreground shadow-none placeholder:text-muted-foreground"
-        />
-      </div>
-      {weeklySearchSummary ? (
-        <div className="rounded-2xl border border-border bg-card/80 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-              {weeklySearchSummary.count} dias esta semana
-            </Badge>
-            <p className="text-sm font-medium text-foreground">
-              {weeklySearchSummary.name}
+        {/* ── Search ──────────────────────────────────────────────────────────── */}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Buscar por nombre..."
+            className="h-10 rounded-[14px] border-border bg-background pl-11 text-base text-foreground shadow-none placeholder:text-muted-foreground"
+          />
+        </div>
+        {weeklySearchSummary ? (
+          <div className="rounded-2xl border border-border bg-card/80 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                {weeklySearchSummary.count} dias esta semana
+              </Badge>
+              <p className="text-sm font-medium text-foreground">
+                {weeklySearchSummary.name}
+              </p>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Dias registrados: {weeklySearchSummary.days.join(", ")}
             </p>
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Dias registrados: {weeklySearchSummary.days.join(", ")}
-          </p>
-        </div>
-      ) : null}
+        ) : null}
 
-      {/* ── Table / empty state ─────────────────────────────────────────────── */}
-      {showInitialEmptyState ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-24 text-center">
-          <div className="mb-5 flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background">
-              <Clock3 className="h-6 w-6 text-muted-foreground" />
+        {/* ── Table / empty state ─────────────────────────────────────────────── */}
+        {showInitialEmptyState ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-24 text-center">
+            <div className="mb-5 flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background">
+                <Clock3 className="h-6 w-6 text-muted-foreground" />
+              </div>
             </div>
+            <p className="font-medium text-foreground">No hay registros para este dia</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Haz clic en &quot;Agregar persona&quot; para comenzar
+            </p>
           </div>
-          <p className="font-medium text-foreground">No hay registros para este dia</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Haz clic en &quot;Agregar persona&quot; para comenzar
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="overflow-x-auto">
-            <Table className="min-w-[820px]">
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="h-10 w-[80px] px-2 font-medium text-muted-foreground">Hora</TableHead>
-                  <TableHead className="h-10 px-2 font-medium text-muted-foreground">Nombre</TableHead>
-                  <TableHead className="h-10 w-[100px] px-2 font-medium text-muted-foreground">Compra</TableHead>
-                  <TableHead className="h-10 px-2 font-medium text-muted-foreground">Producto</TableHead>
-                  <TableHead className="h-10 px-2 font-medium text-muted-foreground">Pago</TableHead>
-                  <TableHead className="h-10 px-2 font-medium text-muted-foreground">Notas</TableHead>
-                  <TableHead className="h-10 w-[80px] px-2 font-medium text-foreground"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCheckIns.length === 0 ? (
-                  <TableRow className="border-border transition-colors hover:bg-secondary/20">
-                    <TableCell colSpan={7} className="p-2 text-center text-sm text-muted-foreground">
-                      No hay check-ins para la fecha o filtro seleccionado.
-                    </TableCell>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[820px]">
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="h-10 w-[80px] px-2 font-medium text-muted-foreground">Hora</TableHead>
+                    <TableHead className="h-10 px-2 font-medium text-muted-foreground">Nombre</TableHead>
+                    <TableHead className="h-10 w-[100px] px-2 font-medium text-muted-foreground">Compra</TableHead>
+                    <TableHead className="h-10 px-2 font-medium text-muted-foreground">Producto</TableHead>
+                    <TableHead className="h-10 px-2 font-medium text-muted-foreground">Pago</TableHead>
+                    <TableHead className="h-10 px-2 font-medium text-muted-foreground">Notas</TableHead>
+                    <TableHead className="h-10 w-[80px] px-2 font-medium text-foreground"></TableHead>
                   </TableRow>
-                ) : (
-                  filteredCheckIns.map((checkIn) => {
-                    const isEditing = editingId === checkIn.id && editingState;
-                    const relatedMember = getMatchedMemberForName(checkIn.name);
+                </TableHeader>
+                <TableBody>
+                  {filteredCheckIns.length === 0 ? (
+                    <TableRow className="border-border transition-colors hover:bg-secondary/20">
+                      <TableCell colSpan={7} className="p-2 text-center text-sm text-muted-foreground">
+                        No hay check-ins para la fecha o filtro seleccionado.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredCheckIns.map((checkIn) => {
+                      const isEditing = editingId === checkIn.id && editingState;
+                      const relatedMember = getMatchedMemberForName(checkIn.name);
 
-                    if (isEditing && confirmingDelete) {
+                      if (isEditing && confirmingDelete) {
+                        return (
+                          <TableRow key={checkIn.id} className="border-border bg-destructive/10">
+                            <TableCell colSpan={6} className="py-4 text-center">
+                              <span className="text-sm text-foreground">
+                                Eliminar a <strong>{checkIn.name}</strong>?
+                              </span>
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteCheckIn(checkIn.id, checkIn.name)}
+                                  className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                                >
+                                  <Check className="h-[18px] w-[18px]" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setConfirmingDelete(false)}
+                                  className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                                >
+                                  <X className="h-[18px] w-[18px]" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
                       return (
-                        <TableRow key={checkIn.id} className="border-border bg-destructive/10">
-                          <TableCell colSpan={6} className="py-4 text-center">
-                            <span className="text-sm text-foreground">
-                              Eliminar a <strong>{checkIn.name}</strong>?
-                            </span>
+                        <TableRow key={checkIn.id} className={cn(
+                          "border-border transition-colors hover:bg-secondary/20",
+                          isEditing && "bg-secondary/30"
+                        )}>
+                          <TableCell className="p-2 font-mono text-sm text-muted-foreground">
+                            {checkIn.time}
+                          </TableCell>
+                          <TableCell className="p-2 font-medium text-foreground">
+                            {isEditing ? (
+                              <Input
+                                value={editingState.name}
+                                onChange={(event) => updateEditing("name", event.target.value)}
+                                className="h-8 min-w-[220px] rounded-md border-border bg-background shadow-none"
+                              />
+                            ) : (
+                              <div className="space-y-1.5">
+                                <div className="leading-none">{checkIn.name}</div>
+                                {relatedMember ? (
+                                  <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                                    <span
+                                      className={cn(
+                                        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] leading-none capitalize",
+                                        getMemberStatusClasses(relatedMember.status)
+                                      )}
+                                    >
+                                      {relatedMember.status}
+                                    </span>
+                                    <span className="truncate">
+                                      {relatedMember.days_remaining >= 0
+                                        ? `${relatedMember.days_remaining} dias restantes`
+                                        : `${Math.abs(relatedMember.days_remaining)} dias vencido`}
+                                    </span>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="p-2">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteCheckIn(checkIn.id, checkIn.name)}
-                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                            {isEditing ? (
+                              <div className="flex gap-1">
+                                <Button
+                                  type="button"
+                                  variant={!editingState.hasPurchase ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => updateEditing("hasPurchase", false)}
+                                  className={cn(
+                                    "h-8 w-8 rounded-lg p-0",
+                                    !editingState.hasPurchase
+                                      ? "bg-primary text-primary-foreground"
+                                      : "border-border text-muted-foreground"
+                                  )}
+                                >
+                                  <LogIn className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={editingState.hasPurchase ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => updateEditing("hasPurchase", true)}
+                                  className={cn(
+                                    "h-8 w-8 rounded-lg p-0",
+                                    editingState.hasPurchase
+                                      ? "bg-primary text-primary-foreground"
+                                      : "border-border text-muted-foreground"
+                                  )}
+                                >
+                                  <ShoppingBag className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              checkIn.hasPurchase ? (
+                                <Badge className="border-0 bg-primary text-primary-foreground hover:bg-primary">
+                                  Si
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-border bg-background text-foreground hover:bg-background"
+                                >
+                                  No
+                                </Badge>
+                              )
+                            )}
+                          </TableCell>
+                          <TableCell className="p-2 text-muted-foreground">
+                            {isEditing ? (
+                              <div className="min-w-[220px] space-y-1.5">
+                                {parseStoredProductList(editingState.product).length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {getProductCounts(parseStoredProductList(editingState.product)).map(({ name, quantity }) => (
+                                      <Badge
+                                        key={name}
+                                        variant="secondary"
+                                        className="rounded-full border border-lime-200 bg-lime-100 px-2 py-0.5 text-[11px] text-lime-700"
+                                      >
+                                        <span>{name}{quantity > 1 ? ` x${quantity}` : ""}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeOneEditingProduct(name)}
+                                          className="ml-1 rounded-full text-lime-700/80 transition hover:bg-accent hover:text-lime-900"
+                                          aria-label={`Quitar 1 ${name}`}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <Select
+                                  key={`edit-product-select-${parseStoredProductList(editingState.product).length}`}
+                                  value={undefined}
+                                  onValueChange={(value) => updateEditing("product", value)}
+                                  disabled={!editingState.hasPurchase || activeProducts.length === 0}
+                                >
+                                  <SelectTrigger className="h-8 min-w-[220px] rounded-md border-border bg-background text-xs shadow-none">
+                                    <SelectValue placeholder={editingState.hasPurchase ? "Agregar producto" : "-"} />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-80">
+                                    {orderedProductGroups.map((group, index) => (
+                                      <SelectGroup key={group.category}>
+                                        <SelectLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                                          {group.category}
+                                        </SelectLabel>
+                                        {group.products.map((product) => (
+                                          <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
+                                            {product.name}
+                                          </SelectItem>
+                                        ))}
+                                        {index < orderedProductGroups.length - 1 ? <SelectSeparator /> : null}
+                                      </SelectGroup>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : (
+                              checkIn.product ?? "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="p-2">
+                            {isEditing ? (
+                              <Select
+                                value={
+                                  editingState.hasPurchase
+                                    ? editingState.paymentMethod
+                                    : "NONE"
+                                }
+                                onValueChange={(value) =>
+                                  updateEditing(
+                                    "paymentMethod",
+                                    value as PaymentMethodValue
+                                  )
+                                }
+                                disabled={!editingState.hasPurchase}
                               >
-                                <Check className="h-[18px] w-[18px]" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setConfirmingDelete(false)}
-                                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                                <SelectTrigger className="h-8 w-[128px] rounded-md border-border bg-background text-xs shadow-none">
+                                  <SelectValue placeholder="-" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="NONE">-</SelectItem>
+                                  <SelectItem value="TARJETA">TARJETA</SelectItem>
+                                  <SelectItem value="EFECTIVO">EFECTIVO</SelectItem>
+                                  <SelectItem value="SINPE">SINPE</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : checkIn.paymentMethod ? (
+                              <Badge variant="outline" className="border-border text-foreground">
+                                {checkIn.paymentMethod}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate p-2 text-muted-foreground">
+                            {isEditing ? (
+                              <Input
+                                value={editingState.notes}
+                                onChange={(event) => updateEditing("notes", event.target.value)}
+                                placeholder="Notas..."
+                                className="h-8 min-w-[160px] rounded-md border-border bg-background shadow-none"
+                              />
+                            ) : (
+                              checkIn.notes ?? "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="p-2">
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-700"
+                                  aria-label={`Guardar ${checkIn.name}`}
+                                  onClick={saveEditing}
+                                >
+                                  <Check className="h-[18px] w-[18px]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-100 hover:text-red-700"
+                                  aria-label={`Eliminar ${checkIn.name}`}
+                                  onClick={() => setConfirmingDelete(true)}
+                                >
+                                  <Trash2 className="h-[18px] w-[18px]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition hover:bg-amber-100 hover:text-amber-700"
+                                  aria-label={`Cancelar edicion de ${checkIn.name}`}
+                                  onClick={cancelEditing}
+                                >
+                                  <X className="h-[18px] w-[18px]" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sky-600 transition hover:bg-sky-100 hover:text-sky-700"
+                                aria-label={`Editar ${checkIn.name}`}
+                                onClick={() => startEditing(checkIn)}
                               >
-                                <X className="h-[18px] w-[18px]" />
-                              </Button>
-                            </div>
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
-                    }
-
-                    return (
-                      <TableRow key={checkIn.id} className={cn(
-                        "border-border transition-colors hover:bg-secondary/20",
-                        isEditing && "bg-secondary/30"
-                      )}>
-                        <TableCell className="p-2 font-mono text-sm text-muted-foreground">
-                          {checkIn.time}
-                        </TableCell>
-                        <TableCell className="p-2 font-medium text-foreground">
-                          {isEditing ? (
-                            <Input
-                              value={editingState.name}
-                              onChange={(event) => updateEditing("name", event.target.value)}
-                              className="h-8 min-w-[220px] rounded-md border-border bg-background shadow-none"
-                            />
-                          ) : (
-                            <div className="space-y-1.5">
-                              <div className="leading-none">{checkIn.name}</div>
-                              {relatedMember ? (
-                                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                                  <span
-                                    className={cn(
-                                      "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] leading-none capitalize",
-                                      getMemberStatusClasses(relatedMember.status)
-                                    )}
-                                  >
-                                    {relatedMember.status}
-                                  </span>
-                                  <span className="truncate">
-                                    {relatedMember.days_remaining >= 0
-                                      ? `${relatedMember.days_remaining} dias restantes`
-                                      : `${Math.abs(relatedMember.days_remaining)} dias vencido`}
-                                  </span>
-                                </div>
-                              ) : null}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="p-2">
-                          {isEditing ? (
-                            <div className="flex gap-1">
-                              <Button
-                                type="button"
-                                variant={!editingState.hasPurchase ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => updateEditing("hasPurchase", false)}
-                                className={cn(
-                                  "h-8 w-8 rounded-lg p-0",
-                                  !editingState.hasPurchase
-                                    ? "bg-primary text-primary-foreground"
-                                    : "border-border text-muted-foreground"
-                                )}
-                              >
-                                <LogIn className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant={editingState.hasPurchase ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => updateEditing("hasPurchase", true)}
-                                className={cn(
-                                  "h-8 w-8 rounded-lg p-0",
-                                  editingState.hasPurchase
-                                    ? "bg-primary text-primary-foreground"
-                                    : "border-border text-muted-foreground"
-                                )}
-                              >
-                                <ShoppingBag className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            checkIn.hasPurchase ? (
-                              <Badge className="border-0 bg-primary text-primary-foreground hover:bg-primary">
-                                Si
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="border-border bg-background text-foreground hover:bg-background"
-                              >
-                                No
-                              </Badge>
-                            )
-                          )}
-                        </TableCell>
-                        <TableCell className="p-2 text-muted-foreground">
-                          {isEditing ? (
-                            <div className="min-w-[220px] space-y-1.5">
-                              {parseStoredProductList(editingState.product).length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {getProductCounts(parseStoredProductList(editingState.product)).map(({ name, quantity }) => (
-                                    <Badge
-                                      key={name}
-                                      variant="secondary"
-                                      className="rounded-full border border-lime-200 bg-lime-100 px-2 py-0.5 text-[11px] text-lime-700"
-                                    >
-                                      <span>{name}{quantity > 1 ? ` x${quantity}` : ""}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeOneEditingProduct(name)}
-                                        className="ml-1 rounded-full text-lime-700/80 transition hover:bg-accent hover:text-lime-900"
-                                        aria-label={`Quitar 1 ${name}`}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
-                                    </Badge>
-                                  ))}
-                                </div>
-                              ) : null}
-                              <Select
-                                key={`edit-product-select-${parseStoredProductList(editingState.product).length}`}
-                                value={undefined}
-                                onValueChange={(value) => updateEditing("product", value)}
-                                disabled={!editingState.hasPurchase || activeProducts.length === 0}
-                              >
-                                <SelectTrigger className="h-8 min-w-[220px] rounded-md border-border bg-background text-xs shadow-none">
-                                  <SelectValue placeholder={editingState.hasPurchase ? "Agregar producto" : "-"} />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-80">
-                                  {orderedProductGroups.map((group, index) => (
-                                    <SelectGroup key={group.category}>
-                                      <SelectLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide">
-                                        {group.category}
-                                      </SelectLabel>
-                                      {group.products.map((product) => (
-                                        <SelectItem key={product.id} value={encodeProductSelectValue(product)}>
-                                          {product.name}
-                                        </SelectItem>
-                                      ))}
-                                      {index < orderedProductGroups.length - 1 ? <SelectSeparator /> : null}
-                                    </SelectGroup>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ) : (
-                            checkIn.product ?? "—"
-                          )}
-                        </TableCell>
-                        <TableCell className="p-2">
-                          {isEditing ? (
-                            <Select
-                              value={
-                                editingState.hasPurchase
-                                  ? editingState.paymentMethod
-                                  : "NONE"
-                              }
-                              onValueChange={(value) =>
-                                updateEditing(
-                                  "paymentMethod",
-                                  value as PaymentMethodValue
-                                )
-                              }
-                              disabled={!editingState.hasPurchase}
-                            >
-                              <SelectTrigger className="h-8 w-[128px] rounded-md border-border bg-background text-xs shadow-none">
-                                <SelectValue placeholder="-" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="NONE">-</SelectItem>
-                                <SelectItem value="TARJETA">TARJETA</SelectItem>
-                                <SelectItem value="EFECTIVO">EFECTIVO</SelectItem>
-                                <SelectItem value="SINPE">SINPE</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : checkIn.paymentMethod ? (
-                            <Badge variant="outline" className="border-border text-foreground">
-                              {checkIn.paymentMethod}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate p-2 text-muted-foreground">
-                          {isEditing ? (
-                            <Input
-                              value={editingState.notes}
-                              onChange={(event) => updateEditing("notes", event.target.value)}
-                              placeholder="Notas..."
-                              className="h-8 min-w-[160px] rounded-md border-border bg-background shadow-none"
-                            />
-                          ) : (
-                            checkIn.notes ?? "—"
-                          )}
-                        </TableCell>
-                        <TableCell className="p-2">
-                          {isEditing ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-700"
-                                aria-label={`Guardar ${checkIn.name}`}
-                                onClick={saveEditing}
-                              >
-                                <Check className="h-[18px] w-[18px]" />
-                              </button>
-                              <button
-                                type="button"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-100 hover:text-red-700"
-                                aria-label={`Eliminar ${checkIn.name}`}
-                                onClick={() => setConfirmingDelete(true)}
-                              >
-                                <Trash2 className="h-[18px] w-[18px]" />
-                              </button>
-                              <button
-                                type="button"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition hover:bg-amber-100 hover:text-amber-700"
-                                aria-label={`Cancelar edicion de ${checkIn.name}`}
-                                onClick={cancelEditing}
-                              >
-                                <X className="h-[18px] w-[18px]" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sky-600 transition hover:bg-sky-100 hover:text-sky-700"
-                              aria-label={`Editar ${checkIn.name}`}
-                              onClick={() => startEditing(checkIn)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        </div>
-      )}
-    </main>
-  );
-}
+        )}
+      </main>
+    );
+  }
 
 

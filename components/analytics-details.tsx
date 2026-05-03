@@ -7,7 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { CheckIn, formatAmountCRC, formatLocalDateKey } from "@/lib/checkins";
 import {
-  EXPIRING_THRESHOLD_DAYS,
   formatCurrency,
   formatDate,
   formatPersonName,
@@ -84,13 +83,13 @@ function getPercent(part: number, total: number) {
 function getStatusLabel(status: MemberWithStatus["status"]) {
   switch (status) {
     case "active":
-      return "Active";
+      return "Activo";
     case "expiring":
-      return "Expiring";
+      return "Por vencer";
     case "expired":
-      return "Expired";
+      return "Vencido";
     case "inactive":
-      return "Inactive";
+      return "Inactivo";
   }
 }
 
@@ -234,6 +233,10 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
     },
   );
 
+  const sortedDisciplineRows = disciplineRows
+    .filter((row) => row.members > 0)
+    .sort((left, right) => right.members - left.members);
+
   const chartData = disciplineRows
     .filter((row) => row.members > 0)
     .sort((left, right) => right.members - left.members)
@@ -245,10 +248,10 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
     }));
 
   const statusMix = [
-    { label: "Active", value: activeMembers.length, color: STATUS_COLORS.active },
-    { label: "Expiring", value: expiringMembers.length, color: STATUS_COLORS.expiring },
-    { label: "Expired", value: expiredMembers.length, color: STATUS_COLORS.expired },
-    { label: "Inactive", value: inactiveMembers.length, color: STATUS_COLORS.inactive },
+    { label: "Activos", value: activeMembers.length, color: STATUS_COLORS.active },
+    { label: "Por vencer", value: expiringMembers.length, color: STATUS_COLORS.expiring },
+    { label: "Vencidos", value: expiredMembers.length, color: STATUS_COLORS.expired },
+    { label: "Inactivos", value: inactiveMembers.length, color: STATUS_COLORS.inactive },
   ].filter((item) => item.value > 0);
 
   const watchlist = [...expiringMembers, ...expiredMembers]
@@ -287,52 +290,52 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card className="border-border/70 bg-card shadow-none">
-          <CardContent className="p-5 sm:p-6">
+    <div className="min-w-0 space-y-6">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex flex-col gap-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
                   <Badge
                     variant="outline"
                     className="border-primary/20 bg-primary/5 text-primary"
                   >
-                    Analytics grounded in real activity
+                    Datos de los últimos 30 días
                   </Badge>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                    Member health, attendance, and revenue in one place
+                  <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                    Membresías, visitas y caja
                   </h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    This dashboard now combines membership status with real check-ins
-                    and sales from the last 30 days, so the numbers reflect what is
-                    actually happening in the gym.
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                    Los ingresos recurrentes salen de la cuota mensual registrada. Las
+                    visitas y ventas en mostrador vienen de los check-ins reales.
                   </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Billable MRR Total
+                <div className="grid shrink-0 gap-2 sm:grid-cols-2 lg:max-w-md lg:grid-cols-1 xl:max-w-sm xl:grid-cols-2">
+                  <div className="rounded-2xl border border-border bg-muted/30 px-3 py-3 sm:px-4">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Ingreso recurrente (USD equiv.)
                     </p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                       {monthlyRevenueUsdEquivalent !== null
                         ? formatCurrency(monthlyRevenueUsdEquivalent, "USD")
                         : "Sin tasa"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {formatCurrency(revenueByCurrency.CRC, "CRC")} +{" "}
-                      {formatCurrency(revenueByCurrency.USD, "USD")} nativo
+                      {formatCurrency(revenueByCurrency.USD, "USD")}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      30d Sales
+                  <div className="rounded-2xl border border-border bg-muted/30 px-3 py-3 sm:px-4">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Ventas en check-in (30 d.)
                     </p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                       {formatAmountCRC(recentRevenueCRC)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {recentSales.length} purchase records
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {recentSales.length}{" "}
+                      {recentSales.length === 1 ? "venta" : "ventas"} registradas
                     </p>
                   </div>
                 </div>
@@ -341,48 +344,48 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                   {
-                    title: "Active base",
+                    title: "Activos",
                     value: activeMembers.length,
-                    helper: `${billableMembers.length} billable now`,
+                    helper: `${billableMembers.length} con cuota al día`,
                     icon: Users,
                     tone: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
                   },
                   {
-                    title: "Visits last 30d",
+                    title: "Visitas (30 d.)",
                     value: recentCheckIns.length,
-                    helper: `${visitsLast7Days} in the last 7 days`,
+                    helper: `${visitsLast7Days} esta semana`,
                     icon: Activity,
                     tone: "bg-sky-50 text-sky-700 border-sky-200/70",
                   },
                   {
-                    title: "Unique visitors",
+                    title: "Personas distintas",
                     value: uniqueVisitors30d,
-                    helper: `${avgVisitsPerActiveMember.toFixed(1)} avg visits per active`,
+                    helper: `${avgVisitsPerActiveMember.toFixed(1)} visitas / activo`,
                     icon: Target,
                     tone: "bg-violet-50 text-violet-700 border-violet-200/70",
                   },
                   {
-                    title: "Renewal pressure",
+                    title: "Renovar",
                     value: expiringMembers.length + expiredMembers.length,
-                    helper: `${dueIn7Days} due in 7 days`,
+                    helper: `${dueIn7Days} vencen en 7 días`,
                     icon: CalendarClock,
                     tone: "bg-amber-50 text-amber-700 border-amber-200/70",
                   },
                 ].map((item) => (
                   <div
                     key={item.title}
-                    className="rounded-2xl border border-border bg-background p-4"
+                    className="min-w-0 rounded-2xl border border-border bg-background p-3 sm:p-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium text-muted-foreground">{item.title}</p>
-                      <div className={`rounded-xl border px-2 py-2 ${item.tone}`}>
+                      <div className={`shrink-0 rounded-xl border px-2 py-2 ${item.tone}`}>
                         <item.icon className="h-4 w-4" />
                       </div>
                     </div>
-                    <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
+                    <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-3xl">
                       {item.value}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">{item.helper}</p>
+                    <p className="mt-1 text-xs leading-snug text-muted-foreground">{item.helper}</p>
                   </div>
                 ))}
               </div>
@@ -390,46 +393,50 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-card shadow-none">
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Performance summary</CardTitle>
+            <CardTitle className="text-lg">Indicadores rápidos</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Porcentajes sobre check-ins de los últimos 30 días.
+            </p>
           </CardHeader>
           <CardContent className="space-y-5">
             <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Retention readiness</span>
-                <span className="font-medium text-foreground">
+              <div className="mb-2 flex items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">Asistencia fuerte</span>
+                <span className="shrink-0 font-medium tabular-nums text-foreground">
                   {retentionReadiness.toFixed(0)}%
                 </span>
               </div>
               <Progress value={clampPercent(retentionReadiness)} className="h-2.5" />
               <p className="mt-2 text-xs text-muted-foreground">
-                Active members with 4 or more visit-days in the last 30 days.
+                Activos con 4+ días de visita en el período (un día cuenta si hubo al
+                menos un check-in).
               </p>
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Sales conversion</span>
-                <span className="font-medium text-foreground">
+              <div className="mb-2 flex items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">Check-ins con compra</span>
+                <span className="shrink-0 font-medium tabular-nums text-foreground">
                   {salesConversion.toFixed(0)}%
                 </span>
               </div>
               <Progress value={clampPercent(salesConversion)} className="h-2.5" />
               <p className="mt-2 text-xs text-muted-foreground">
-                Share of check-ins in the last 30 days that included a purchase.
+                Qué parte de los check-ins llevaron venta en mostrador.
               </p>
             </div>
 
             <Separator />
 
-            <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <div className="rounded-2xl border border-border bg-muted/20 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Wallet className="h-4 w-4 text-primary" />
-                  At-risk recurring revenue
+                  <Wallet className="h-4 w-4 shrink-0 text-primary" />
+                  Cuota en riesgo (vencidos / por vencer)
                 </div>
-                <p className="mt-2 text-lg font-semibold text-foreground">
+                <p className="mt-2 text-lg font-semibold tabular-nums text-foreground">
                   {formatCurrency(atRiskRevenue.USD, "USD")}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -439,170 +446,88 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
 
               <div className="rounded-2xl border border-border bg-muted/20 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Average billable tenure
+                  <TrendingUp className="h-4 w-4 shrink-0 text-primary" />
+                  Antigüedad media (facturables)
                 </div>
-                <p className="mt-2 text-lg font-semibold text-foreground">
+                <p className="mt-2 text-lg font-semibold tabular-nums text-foreground">
                   {formatTenure(Math.round(avgTenureDays || 0))}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Based on active and expiring members.
+                <p className="text-xs text-muted-foreground">Activos + por vencer.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section>
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Ingresos recurrentes</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Suma de cuotas mensuales de socios activos y por vencer. El anual es cuota
+              mensual × 12 (proyección simple). Las ventas del mostrador van aparte.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+                  <CircleDollarSign className="h-4 w-4 shrink-0" />
+                  Mensual (CRC)
+                </div>
+                <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+                  {formatCurrency(revenueByCurrency.CRC, "CRC")}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+                  <CircleDollarSign className="h-4 w-4 shrink-0" />
+                  Mensual (USD total)
+                </div>
+                <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+                  {monthlyRevenueUsdEquivalent !== null
+                    ? formatCurrency(monthlyRevenueUsdEquivalent, "USD")
+                    : "Sin tasa"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  CRC convertido + USD nativo.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-sky-800">
+                  <TrendingUp className="h-4 w-4 shrink-0" />
+                  Anual proyectado (CRC)
+                </div>
+                <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+                  {formatCurrency(annualRecurringRevenueByCurrency.CRC, "CRC")}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-sky-800">
+                  <TrendingUp className="h-4 w-4 shrink-0" />
+                  Anual proyectado (USD)
+                </div>
+                <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+                  {annualRevenueUsdEquivalent !== null
+                    ? formatCurrency(annualRevenueUsdEquivalent, "USD")
+                    : "Sin tasa"}
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/70 bg-card shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Ingresos del negocio</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Basado en membresias activas y por vencer registradas en la base de datos.
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
-                <CircleDollarSign className="h-4 w-4" />
-                Ingreso mensual CRC
-              </div>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                {formatCurrency(revenueByCurrency.CRC, "CRC")}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Recurrente actual de membresias en colones.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
-                <CircleDollarSign className="h-4 w-4" />
-                Ingreso mensual total USD
-              </div>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                {monthlyRevenueUsdEquivalent !== null
-                  ? formatCurrency(monthlyRevenueUsdEquivalent, "USD")
-                  : "Sin tasa"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Equivalente total en dolares, incluyendo CRC convertido.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-sky-800">
-                <TrendingUp className="h-4 w-4" />
-                Proyeccion anual CRC
-              </div>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                {formatCurrency(annualRecurringRevenueByCurrency.CRC, "CRC")}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Mensual actual x 12 segun la base activa.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-sky-800">
-                <TrendingUp className="h-4 w-4" />
-                Proyeccion anual total USD
-              </div>
-              <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-                {annualRevenueUsdEquivalent !== null
-                  ? formatCurrency(annualRevenueUsdEquivalent, "USD")
-                  : "Sin tasa"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Equivalente anual en dolares usando la tasa actual.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 bg-card shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Lectura rapida</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Vista ejecutiva del ingreso recurrente y ventas recientes.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-2xl border border-border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Wallet className="h-4 w-4 text-primary" />
-                Facturacion recurrente mensual
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">CRC</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {formatCurrency(revenueByCurrency.CRC, "CRC")}
+            <div className="rounded-2xl border border-dashed border-border p-3 sm:p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+                <AlertTriangle className="mt-0.5 hidden h-4 w-4 shrink-0 text-amber-600 sm:block" />
+                <div className="min-w-0 space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    <span className="font-medium text-foreground">Tasa USD/CRC: </span>
+                    {usdToCrcRate
+                      ? `1 USD = ${usdToCrcRate.toFixed(2)} CRC`
+                      : "No cargada; el total USD puede faltar."}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">Monto nativo en CRC</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    USD total
-                  </p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {monthlyRevenueUsdEquivalent !== null
-                      ? formatCurrency(monthlyRevenueUsdEquivalent, "USD")
-                      : "Sin tasa"}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Incluye CRC convertido + USD nativo.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                Facturacion recurrente anual proyectada
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">CRC</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {formatCurrency(annualRecurringRevenueByCurrency.CRC, "CRC")}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">Monto nativo en CRC</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    USD total
-                  </p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {annualRevenueUsdEquivalent !== null
-                      ? formatCurrency(annualRevenueUsdEquivalent, "USD")
-                      : "Sin tasa"}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Incluye CRC convertido + USD nativo.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-dashed border-border p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Como se calcula</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    El mensual usa membresias activas y por vencer. El anual es una proyeccion
-                    simple de ese ingreso mensual multiplicado por 12.
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    El total en USD convierte CRC a dolares con la tasa actual
-                    {usdToCrcRate ? `: 1 USD = ${usdToCrcRate.toFixed(2)} CRC.` : "."}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Ventas del check-in se mantienen separadas: {formatAmountCRC(recentRevenueCRC)}
-                    {" "}en los ultimos 30 dias.
+                  <p>
+                    <span className="font-medium text-foreground">Ventas mostrador (30 d.): </span>
+                    {formatAmountCRC(recentRevenueCRC)} — no están incluidas arriba.
                   </p>
                 </div>
               </div>
@@ -611,64 +536,86 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
         </Card>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="border-border/70 bg-card shadow-none">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Discipline activity mix</CardTitle>
+            <CardTitle className="text-lg">Disciplinas</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Members, billable base, and average visit-days over the last 30 days.
+              Socios totales vs. con cuota al día; barras según tu base actual.
             </p>
           </CardHeader>
-          <CardContent className="h-[330px] pt-2">
+          <CardContent className="min-h-[260px] w-full pt-2 sm:min-h-[300px] lg:min-h-[320px]">
             {chartData.length === 0 ? (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
-                No analytics data available yet.
+              <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-border px-2 text-center text-sm text-muted-foreground">
+                Aún no hay datos para graficar.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, left: 0, right: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="name"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "14px",
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 18px 35px rgba(15, 23, 42, 0.08)",
-                    }}
-                  />
-                  <Bar dataKey="members" fill="#1f7a5a" radius={[10, 10, 0, 0]} name="Members" />
-                  <Bar dataKey="billable" fill="#d4a017" radius={[10, 10, 0, 0]} name="Billable" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[min(55vh,360px)] w-full min-w-0 sm:h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={chartData}
+                    margin={{ top: 8, left: -8, right: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      height={56}
+                      interval={0}
+                      tick={{ fontSize: 10 }}
+                      angle={-32}
+                      textAnchor="end"
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tickLine={false}
+                      axisLine={false}
+                      width={32}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 12px 24px rgba(15, 23, 42, 0.06)",
+                      }}
+                    />
+                    <Bar dataKey="members" fill="#1f7a5a" radius={[8, 8, 0, 0]} name="Socios" />
+                    <Bar dataKey="billable" fill="#d4a017" radius={[8, 8, 0, 0]} name="Con cuota" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-card shadow-none">
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Status mix</CardTitle>
+            <CardTitle className="text-lg">Estado de membresías</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Operational view of your current membership base.
+              Partes del total de fichas en la base de datos.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
             {statusMix.map((item) => (
-              <div key={item.label} className="rounded-2xl border border-border bg-background p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+              <div
+                key={item.label}
+                className="rounded-2xl border border-border bg-background p-3 sm:p-4"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span
-                      className="h-2.5 w-2.5 rounded-full"
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-sm font-medium text-foreground">{item.label}</span>
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {item.label}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-foreground">{item.value}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                    {item.value}
+                  </span>
                 </div>
                 <Progress
                   value={clampPercent(getPercent(item.value, members.length))}
@@ -677,14 +624,14 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
               </div>
             ))}
 
-            <div className="rounded-2xl border border-dashed border-border p-4">
+            <div className="rounded-2xl border border-dashed border-border p-3 sm:p-4">
               <div className="flex items-start gap-3">
-                <Clock3 className="mt-0.5 h-4 w-4 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Immediate follow-up</p>
+                <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">Prioridad</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {expiringMembers.length + expiredMembers.length} members need renewal
-                    attention, with {dueIn7Days} inside the next 7 days.
+                    {expiringMembers.length + expiredMembers.length} socios necesitan renovación
+                    ({dueIn7Days} con fin de membresía en los próximos 7 días).
                   </p>
                 </div>
               </div>
@@ -693,92 +640,139 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
         </Card>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
-        <Card className="border-border/70 bg-card shadow-none">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Discipline precision table</CardTitle>
+            <CardTitle className="text-lg">Detalle por disciplina</CardTitle>
             <p className="text-sm text-muted-foreground">
-              A cleaner operational breakdown aligned with the rest of the dashboard.
+              Visitas = promedio de días con check-in (30 d.) por socio de esa disciplina.
             </p>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[740px] border-separate border-spacing-y-2">
+          <CardContent className="min-w-0">
+            {sortedDisciplineRows.length === 0 ? (
+              <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
+                No hay disciplinas con socios registrados.
+              </div>
+            ) : (
+              <>
+            <ul className="space-y-3 lg:hidden">
+              {sortedDisciplineRows.map((row) => (
+                <li
+                  key={row.discipline}
+                  className="rounded-2xl border border-border bg-muted/15 p-4"
+                >
+                  <p className="font-medium text-foreground">{row.label}</p>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Socios</dt>
+                      <dd className="font-medium tabular-nums text-foreground">{row.members}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Con cuota</dt>
+                      <dd className="font-medium tabular-nums text-foreground">{row.billable}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Visitas prom.</dt>
+                      <dd className="font-medium tabular-nums text-foreground">
+                        {row.avgVisitDays.toFixed(1)} d
+                      </dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs text-muted-foreground">Cuota mensual</dt>
+                      <dd className="text-foreground">
+                        {row.usdRevenue > 0 && (
+                          <span className="mr-2">{formatCurrency(row.usdRevenue, "USD")}</span>
+                        )}
+                        {row.crcRevenue > 0 && (
+                          <span>{formatCurrency(row.crcRevenue, "CRC")}</span>
+                        )}
+                        {row.usdRevenue <= 0 && row.crcRevenue <= 0 && "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+
+            <div className="-mx-1 hidden overflow-x-auto px-1 lg:block">
+              <table className="w-full min-w-[640px] border-separate border-spacing-y-2">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="pb-2 font-medium">Discipline</th>
-                    <th className="pb-2 font-medium">Members</th>
-                    <th className="pb-2 font-medium">Billable</th>
-                    <th className="pb-2 font-medium">Avg visit-days</th>
-                    <th className="pb-2 font-medium">Revenue USD</th>
-                    <th className="pb-2 font-medium">Revenue CRC</th>
+                  <tr className="text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <th className="pb-2">Disciplina</th>
+                    <th className="pb-2">Socios</th>
+                    <th className="pb-2">Cuota</th>
+                    <th className="pb-2">Visitas</th>
+                    <th className="pb-2">USD</th>
+                    <th className="pb-2">CRC</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {disciplineRows
-                    .filter((row) => row.members > 0)
-                    .sort((left, right) => right.members - left.members)
-                    .map((row) => (
-                      <tr key={row.discipline} className="bg-muted/20">
-                        <td className="rounded-l-2xl px-3 py-3 font-medium text-foreground">
-                          {row.label}
-                        </td>
-                        <td className="px-3 py-3 text-foreground">{row.members}</td>
-                        <td className="px-3 py-3 text-foreground">{row.billable}</td>
-                        <td className="px-3 py-3 text-foreground">
-                          {row.avgVisitDays.toFixed(1)}
-                        </td>
-                        <td className="px-3 py-3 text-foreground">
-                          {row.usdRevenue > 0 ? formatCurrency(row.usdRevenue, "USD") : "-"}
-                        </td>
-                        <td className="rounded-r-2xl px-3 py-3 text-foreground">
-                          {row.crcRevenue > 0 ? formatCurrency(row.crcRevenue, "CRC") : "-"}
-                        </td>
-                      </tr>
-                    ))}
+                  {sortedDisciplineRows.map((row) => (
+                    <tr key={row.discipline} className="bg-muted/20">
+                      <td className="rounded-l-2xl px-3 py-3 font-medium text-foreground">
+                        {row.label}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums text-foreground">{row.members}</td>
+                      <td className="px-3 py-3 tabular-nums text-foreground">{row.billable}</td>
+                      <td className="px-3 py-3 tabular-nums text-foreground">
+                        {row.avgVisitDays.toFixed(1)}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums text-foreground">
+                        {row.usdRevenue > 0 ? formatCurrency(row.usdRevenue, "USD") : "—"}
+                      </td>
+                      <td className="rounded-r-2xl px-3 py-3 tabular-nums text-foreground">
+                        {row.crcRevenue > 0 ? formatCurrency(row.crcRevenue, "CRC") : "—"}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-card shadow-none">
+        <Card className="min-w-0 border-border/70 bg-card shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Renewal watchlist</CardTitle>
+            <CardTitle className="text-lg">Lista de renovación</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Who needs attention first based on actual membership status.
+              Hasta 7 socios: por vencer o vencidos, los más urgentes primero.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
             {watchlist.length === 0 ? (
-              <div className="flex h-[260px] items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
-                No members at risk right now.
+              <div className="flex min-h-[200px] items-center justify-center rounded-2xl border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+                Nadie en lista crítica por ahora.
               </div>
             ) : (
               watchlist.map((member) => (
-                <div key={member.id} className="rounded-2xl border border-border bg-background p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                <div
+                  key={member.id}
+                  className="rounded-2xl border border-border bg-background p-3 sm:p-4"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                    <div className="min-w-0">
                       <p className="font-medium text-foreground">{member.name}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {disciplineLabels[member.discipline]} • {formatDate(member.end_date)}
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {disciplineLabels[member.discipline]} · vence {formatDate(member.end_date)}
                       </p>
                     </div>
                     <Badge
-                      className={
+                      className={`w-fit shrink-0 ${
                         member.days_remaining < 0
                           ? "border-rose-200 bg-rose-50 text-rose-700"
                           : "border-amber-200 bg-amber-50 text-amber-700"
-                      }
+                      }`}
                     >
                       {member.days_remaining < 0
-                        ? `${Math.abs(member.days_remaining)}d overdue`
-                        : `${member.days_remaining}d left`}
+                        ? `${Math.abs(member.days_remaining)} d retraso`
+                        : `${member.days_remaining} d restantes`}
                     </Badge>
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-sm">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="text-muted-foreground">{getStatusLabel(member.status)}</span>
-                    <span className="font-medium text-foreground">
+                    <span className="font-medium tabular-nums text-foreground">
                       {formatCurrency(member.monthly_fee, member.currency)}
                     </span>
                   </div>
@@ -786,15 +780,14 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
               ))
             )}
 
-            <div className="rounded-2xl border border-dashed border-border p-4">
+            <div className="rounded-2xl border border-dashed border-border p-3 sm:p-4">
               <div className="flex items-start gap-3">
-                <ShieldAlert className="mt-0.5 h-4 w-4 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Why this is more precise</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Attendance uses the last 30 days of real `check_ins`, while
-                    recurring revenue still comes from member subscriptions and stays
-                    separated by currency.
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">De dónde salen los datos</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    Visitas: tabla de check-ins (últimos 30 d.). Ingresos recurrentes: cuota en cada
+                    socio. Monedas separadas como en el resto del panel.
                   </p>
                 </div>
               </div>

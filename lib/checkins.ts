@@ -175,11 +175,10 @@ export function formatAmountCRC(amount: number): string {
   }).format(amount);
 }
 
-export function getMonthlyAttendanceRanking(
+function buildMonthlyAttendanceDaysByName(
   checkIns: CheckIn[],
-  selectedDate: string,
-  limit = 5
-): AttendanceRankingEntry[] {
+  selectedDate: string
+): Map<string, Set<string>> {
   const selectedMonthKey = selectedDate.slice(0, 7);
   const attendanceDaysByName = new Map<string, Set<string>>();
 
@@ -193,9 +192,26 @@ export function getMonthlyAttendanceRanking(
     attendanceDaysByName.get(checkIn.name)?.add(dateKey);
   }
 
-  const sorted = Array.from(attendanceDaysByName.entries())
+  return attendanceDaysByName;
+}
+
+/** Full month ranking: unique calendar days with ≥1 check-in per person, sorted by visits desc. */
+export function getMonthlyAttendanceFullRanking(
+  checkIns: CheckIn[],
+  selectedDate: string
+): AttendanceRankingEntry[] {
+  const attendanceDaysByName = buildMonthlyAttendanceDaysByName(checkIns, selectedDate);
+  return Array.from(attendanceDaysByName.entries())
     .map(([name, days]) => ({ name, visits: days.size }))
     .sort((left, right) => right.visits - left.visits || left.name.localeCompare(right.name));
+}
+
+export function getMonthlyAttendanceRanking(
+  checkIns: CheckIn[],
+  selectedDate: string,
+  limit = 5
+): AttendanceRankingEntry[] {
+  const sorted = getMonthlyAttendanceFullRanking(checkIns, selectedDate);
 
   if (sorted.length <= limit) return sorted;
 
