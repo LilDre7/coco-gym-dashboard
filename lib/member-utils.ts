@@ -63,8 +63,29 @@ export function calculateTenureDays(startDate: string): number {
 export function getStatus(daysRemaining: number, isActive: boolean): MemberStatus {
   if (!isActive) return "inactive";
   if (daysRemaining < 0) return "expired";
+  if (daysRemaining === 0) return "payment-due";
   if (daysRemaining <= EXPIRING_THRESHOLD_DAYS) return "expiring";
   return "active";
+}
+
+export function isBillableStatus(status: MemberStatus): boolean {
+  return (
+    status === "active" ||
+    status === "expiring" ||
+    status === "payment-due"
+  );
+}
+
+export function isRenewalStatus(status: MemberStatus): boolean {
+  return (
+    status === "expiring" ||
+    status === "payment-due" ||
+    status === "expired"
+  );
+}
+
+export function isDueSoonStatus(status: MemberStatus): boolean {
+  return status === "expiring" || status === "payment-due";
 }
 
 export function enrichMemberData(member: MemberRow): MemberWithStatus {

@@ -625,13 +625,21 @@ function toIsoDate(value: Date): string {
   return value.toISOString().split("T")[0];
 }
 
+function parseStoredIsoDate(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(value);
+
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0, 0);
+}
+
 function addOneCalendarMonthKeepingDay(anchorDate: Date): Date {
   const year = anchorDate.getFullYear();
   const targetMonth = anchorDate.getMonth() + 1;
   const anchorDay = anchorDate.getDate();
   const lastDayOfTargetMonth = new Date(year, targetMonth + 1, 0).getDate();
   const clampedDay = Math.min(anchorDay, lastDayOfTargetMonth);
-  return new Date(year, targetMonth, clampedDay);
+  return new Date(year, targetMonth, clampedDay, 12, 0, 0, 0);
 }
 
 export async function renewMember(id: string) {
@@ -642,11 +650,31 @@ export async function renewMember(id: string) {
   if (!user) throw new Error("Not authenticated");
 
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setHours(12, 0, 0, 0);
 
-  // Renewal is anchored to payment date (today), keeping calendar day:
-  // e.g., pay on 21 -> expires on 21 next month.
-  const renewedEndDate = addOneCalendarMonthKeepingDay(today);
+  const { data: existingMember, error: fetchError } = await supabase
+    .from("members")
+    .select("end_date")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const currentEndDate = existingMember?.end_date?.trim() ?? "";
+  const renewalAnchor = currentEndDate ? parseStoredIsoDate(currentEndDate) : today;
+
+  // Keep the member on their original payment day.
+  // If they pay late, the missed days are not added back; we advance month by month
+  // from the stored payment day until the next charge date lands after today.
+  let renewedEndDate = addOneCalendarMonthKeepingDay(
+    Number.isNaN(renewalAnchor.getTime()) ? today : renewalAnchor
+  );
+
+  while (renewedEndDate <= today) {
+    renewedEndDate = addOneCalendarMonthKeepingDay(renewedEndDate);
+  }
+
   const shouldBeActive = renewedEndDate >= today;
 
   const { error: updateError } = await supabase

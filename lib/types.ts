@@ -8,7 +8,12 @@ export type Discipline =
   | "crossfit"
   | "personal-trainer";
 
-export type MemberStatus = "active" | "expiring" | "expired" | "inactive";
+export type MemberStatus =
+  | "active"
+  | "expiring"
+  | "payment-due"
+  | "expired"
+  | "inactive";
 
 export type Currency = "USD" | "CRC";
 

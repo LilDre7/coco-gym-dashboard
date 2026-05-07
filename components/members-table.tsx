@@ -58,6 +58,7 @@ import {
   formatCurrency,
   formatDate,
   formatPhoneForWhatsApp,
+  isRenewalStatus,
 } from "@/lib/member-utils";
 import {
   addMember,
@@ -109,6 +110,11 @@ const statusConfig: Record<
     className: "bg-amber-100 text-amber-700 border-amber-200",
     rowClassName: "bg-amber-50/70",
   },
+  "payment-due": {
+    label: "Payment Due",
+    className: "bg-orange-100 text-orange-700 border-orange-200",
+    rowClassName: "bg-orange-50/80",
+  },
   expired: {
     label: "Expired",
     className: "bg-red-100 text-red-700 border-red-200",
@@ -155,6 +161,41 @@ function getInitials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function formatPaymentReminderDate(dateString: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+  const date = match
+    ? new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        12,
+        0,
+        0,
+        0,
+      )
+    : new Date(dateString);
+
+  return new Intl.DateTimeFormat("es-CR", {
+    day: "numeric",
+    month: "long",
+  }).format(date);
+}
+
+function getWhatsAppReminderMessage(member: MemberWithStatus) {
+  const paymentDateLabel = formatPaymentReminderDate(member.end_date);
+  const motivationalLine = "¡A seguir entrenando con todo! 💪";
+
+  if (member.status === "payment-due") {
+    return `Hola ${member.name}, le recordamos que hoy es su día de pago de la membresía. Muchas gracias.\n\n${motivationalLine}`;
+  }
+
+  if (member.days_remaining < 0) {
+    return `Hola ${member.name}, le recordamos que su día de pago fue el ${paymentDateLabel}. Si desea renovar su membresía, con gusto le ayudamos. Muchas gracias.\n\n${motivationalLine}`;
+  }
+
+  return `Hola ${member.name}, le recordamos que el ${paymentDateLabel} es su día de pago de la membresía. Muchas gracias.\n\n${motivationalLine}`;
 }
 
 type MemberTableRowProps = {
@@ -265,7 +306,9 @@ const MemberTableRow = memo(function MemberTableRow({
           className={
             member.days_remaining < 0
               ? "font-medium text-destructive"
-              : member.days_remaining <= EXPIRING_THRESHOLD_DAYS
+              : member.status === "payment-due"
+                ? "font-medium text-orange-700"
+                : member.days_remaining <= EXPIRING_THRESHOLD_DAYS
                 ? "font-medium text-amber-600"
                 : "text-foreground"
           }
@@ -275,6 +318,8 @@ const MemberTableRow = memo(function MemberTableRow({
               <AlertTriangle className="h-3.5 w-3.5" />
               {`${Math.abs(member.days_remaining)}d overdue`}
             </span>
+          ) : member.status === "payment-due" ? (
+            "Pay today"
           ) : (
             `${member.days_remaining}d`
           )}
@@ -287,6 +332,9 @@ const MemberTableRow = memo(function MemberTableRow({
         >
           {member.status === "expired" && (
             <AlertTriangle className="h-3.5 w-3.5" />
+          )}
+          {member.status === "payment-due" && (
+            <Clock3 className="h-3.5 w-3.5" />
           )}
           {config.label}
         </Badge>
@@ -323,8 +371,7 @@ const MemberTableRow = memo(function MemberTableRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-1 lg:gap-2">
-          {(member.status === "expiring" ||
-            member.status === "expired" ||
+          {(isRenewalStatus(member.status) ||
             member.status === "inactive") && (
             <Button
               variant="outline"
@@ -509,11 +556,8 @@ export function MembersTable({ members }: MembersTableProps) {
   const totals = {
     total: members.length,
     active: members.filter((member) => member.status === "active").length,
-    expiring: members.filter(
-      (member) =>
-        member.days_remaining >= 0 &&
-        member.days_remaining <= EXPIRING_THRESHOLD_DAYS,
-    ).length,
+    paymentDue: members.filter((member) => member.status === "payment-due").length,
+    expiring: members.filter((member) => member.status === "expiring").length,
     expired: members.filter((member) => member.status === "expired").length,
   };
 
@@ -755,7 +799,7 @@ export function MembersTable({ members }: MembersTableProps) {
       return;
     }
     const expirationDate = formatDate(member.end_date);
-    const prefilledMessage = `Hola ${member.name}, te recordamos que tu membresía vence el ${expirationDate}.`;
+    const prefilledMessage = getWhatsAppReminderMessage(member);
     const encodedMessage = encodeURIComponent(prefilledMessage);
 
     setOpeningWhatsAppId(member.id);
@@ -788,7 +832,7 @@ export function MembersTable({ members }: MembersTableProps) {
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground">
@@ -816,14 +860,27 @@ export function MembersTable({ members }: MembersTableProps) {
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground">
-              Expiring ({EXPIRING_THRESHOLD_DAYS}d)
+              Due Today
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-0">
+            <p className="text-2xl font-semibold text-orange-700">
+              {totals.paymentDue}
+            </p>
+            <Clock3 className="h-5 w-5 text-orange-600" />
+          </CardContent>
+        </Card>
+        <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">
+              Expiring (1-{EXPIRING_THRESHOLD_DAYS}d)
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between pt-0">
             <p className="text-2xl font-semibold text-amber-700">
               {totals.expiring}
             </p>
-            <Clock3 className="h-5 w-5 text-amber-600" />
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
           </CardContent>
         </Card>
         <Card className="transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-sm">
@@ -927,6 +984,7 @@ export function MembersTable({ members }: MembersTableProps) {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="expiring">Expiring</SelectItem>
+                  <SelectItem value="payment-due">Payment Due</SelectItem>
                   <SelectItem value="expired">Expired</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>

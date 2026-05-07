@@ -83,7 +83,10 @@
     StoreProductRow,
     disciplineLabels,
   } from "@/lib/types";
-  import { formatPersonName, getFirstNameAndSurnameKey } from "@/lib/member-utils";
+  import {
+    formatPersonName,
+    getFirstNameAndSurnameKey,
+  } from "@/lib/member-utils";
   import { createClient } from "@/lib/supabase/client";
   import { cn } from "@/lib/utils";
   import { useRouter } from "next/navigation";
@@ -198,11 +201,38 @@
         return "bg-emerald-100 text-emerald-800 font-semibold";
       case "expiring":
         return "bg-amber-100 text-amber-800 font-semibold";
+      case "payment-due":
+        return "bg-orange-100 text-orange-800 font-semibold";
       case "expired":
         return "bg-red-100 text-red-800 font-semibold";
       case "inactive":
         return "bg-sky-100 text-sky-800 font-semibold";
     }
+  }
+
+  function getMemberStatusLabel(status: MemberWithStatus["status"]) {
+    switch (status) {
+      case "active":
+        return "Activo";
+      case "expiring":
+        return "Por vencer";
+      case "payment-due":
+        return "Dia de pago";
+      case "expired":
+        return "Vencido";
+      case "inactive":
+        return "Inactivo";
+    }
+  }
+
+  function getMemberDaysLabel(member: MemberWithStatus) {
+    if (member.status === "payment-due") {
+      return "Paga hoy";
+    }
+    if (member.days_remaining < 0) {
+      return `${Math.abs(member.days_remaining)} dias vencido`;
+    }
+    return `${member.days_remaining} dias restantes`;
   }
 
   function getStartOfWeek(date: Date) {
@@ -1101,6 +1131,9 @@
       },
     ];
 
+    const detailActionClassName =
+      "mt-2 inline-flex w-fit items-center gap-1 rounded-full border border-primary/20 bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
     const priceCategoriesFromStore: PriceCategory[] = orderedProductGroups.map(
       ({ category, products: categoryProducts }) => ({
         title: category,
@@ -1482,12 +1515,12 @@
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant="outline"
-                        className={cn("capitalize", getMemberStatusClasses(matchedMember.status))}
+                        className={getMemberStatusClasses(matchedMember.status)}
                       >
-                        {matchedMember.status}
+                        {getMemberStatusLabel(matchedMember.status)}
                       </Badge>
                       <Badge variant="outline" className="border-border">
-                        Left {matchedMember.days_remaining} dias
+                        {getMemberDaysLabel(matchedMember)}
                       </Badge>
                       <Badge variant="outline" className="border-border">
                         {disciplineLabels[matchedMember.discipline]}
@@ -1946,7 +1979,7 @@
                       <button
                         type="button"
                         onClick={card.openModalButton.onClick}
-                        className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-full border border-primary/20 bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        className={cn(detailActionClassName, "justify-center")}
                       >
                         <span>{card.openModalButton.label}</span>
                         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
@@ -1954,6 +1987,40 @@
                     </div>
                   </div>
                 </div>
+              );
+            }
+
+            if ("detailLabel" in card && card.detailLabel) {
+              return (
+                <button
+                  key={card.title}
+                  type="button"
+                  onClick={card.onClick}
+                  className="flex min-h-[88px] items-start gap-3 rounded-2xl border border-primary/25 bg-primary/5 px-4 py-4 text-left shadow-sm transition-colors hover:bg-primary/10 sm:gap-4"
+                >
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10",
+                      card.iconShellClassName
+                    )}
+                  >
+                    <card.icon
+                      className={cn("h-4 w-4 sm:h-[18px] sm:w-[18px]", card.iconClassName)}
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <p className="font-semibold tabular-nums leading-snug text-foreground text-base sm:text-lg">
+                      {card.value}
+                    </p>
+                    <p className="text-xs leading-normal text-muted-foreground sm:text-sm">
+                      {card.title}
+                    </p>
+                    <div className={detailActionClassName}>
+                      <span>{card.detailLabel}</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
+                </button>
               );
             }
 
@@ -1989,7 +2056,7 @@
                   </p>
                   <p className="text-xs leading-normal text-muted-foreground sm:text-sm">{card.title}</p>
                   {card.detailLabel ? (
-                    <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
+                    <div className={detailActionClassName}>
                       <span>{card.detailLabel}</span>
                       <ChevronRight className="h-3.5 w-3.5" />
                     </div>
@@ -2124,12 +2191,10 @@
                                         getMemberStatusClasses(relatedMember.status)
                                       )}
                                     >
-                                      {relatedMember.status}
+                                      {getMemberStatusLabel(relatedMember.status)}
                                     </span>
                                     <span className="truncate">
-                                      {relatedMember.days_remaining >= 0
-                                        ? `${relatedMember.days_remaining} dias restantes`
-                                        : `${Math.abs(relatedMember.days_remaining)} dias vencido`}
+                                      {getMemberDaysLabel(relatedMember)}
                                     </span>
                                   </div>
                                 ) : null}

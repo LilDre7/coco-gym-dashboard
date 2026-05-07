@@ -12,6 +12,7 @@ import {
   formatPersonName,
   formatTenure,
   getFirstNameAndSurnameKey,
+  isBillableStatus,
 } from "@/lib/member-utils";
 import { Currency, Discipline, MemberWithStatus, disciplineLabels } from "@/lib/types";
 import {
@@ -45,6 +46,7 @@ interface AnalyticsDetailsProps {
 const STATUS_COLORS = {
   active: "#1f7a5a",
   expiring: "#d4a017",
+  "payment-due": "#dd6b20",
   expired: "#dc6b4b",
   inactive: "#64748b",
 } as const;
@@ -86,6 +88,8 @@ function getStatusLabel(status: MemberWithStatus["status"]) {
       return "Activo";
     case "expiring":
       return "Por vencer";
+    case "payment-due":
+      return "Dia de pago";
     case "expired":
       return "Vencido";
     case "inactive":
@@ -100,10 +104,9 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
   const sevenDaysAgo = subtractDays(today, 6);
 
   const activeMembers = members.filter((member) => member.status === "active");
-  const billableMembers = members.filter(
-    (member) => member.status === "active" || member.status === "expiring",
-  );
+  const billableMembers = members.filter((member) => isBillableStatus(member.status));
   const expiringMembers = members.filter((member) => member.status === "expiring");
+  const paymentDueMembers = members.filter((member) => member.status === "payment-due");
   const expiredMembers = members.filter((member) => member.status === "expired");
   const inactiveMembers = members.filter((member) => member.status === "inactive");
 
@@ -190,7 +193,7 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
         annualRecurringRevenueByCurrency.CRC / usdToCrcRate
       : null;
 
-  const atRiskRevenue = [...expiringMembers, ...expiredMembers].reduce<
+  const atRiskRevenue = [...paymentDueMembers, ...expiringMembers, ...expiredMembers].reduce<
     Record<Currency, number>
   >(
     (accumulator, member) => {
@@ -204,8 +207,8 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
   const disciplineRows = (Object.keys(disciplineLabels) as Discipline[]).map(
     (discipline) => {
       const disciplineMembers = members.filter((member) => member.discipline === discipline);
-      const disciplineActive = disciplineMembers.filter(
-        (member) => member.status === "active" || member.status === "expiring",
+      const disciplineActive = disciplineMembers.filter((member) =>
+        isBillableStatus(member.status),
       );
       const disciplineVisits = engagementRows
         .filter((entry) => entry.member.discipline === discipline)
@@ -250,11 +253,16 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
   const statusMix = [
     { label: "Activos", value: activeMembers.length, color: STATUS_COLORS.active },
     { label: "Por vencer", value: expiringMembers.length, color: STATUS_COLORS.expiring },
+    {
+      label: "Dia de pago",
+      value: paymentDueMembers.length,
+      color: STATUS_COLORS["payment-due"],
+    },
     { label: "Vencidos", value: expiredMembers.length, color: STATUS_COLORS.expired },
     { label: "Inactivos", value: inactiveMembers.length, color: STATUS_COLORS.inactive },
   ].filter((item) => item.value > 0);
 
-  const watchlist = [...expiringMembers, ...expiredMembers]
+  const watchlist = [...paymentDueMembers, ...expiringMembers, ...expiredMembers]
     .sort((left, right) => left.days_remaining - right.days_remaining)
     .slice(0, 7);
 
@@ -346,7 +354,7 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
                   {
                     title: "Activos",
                     value: activeMembers.length,
-                    helper: `${billableMembers.length} con cuota al día`,
+                    helper: `${billableMembers.length} vigentes o cobrables hoy`,
                     icon: Users,
                     tone: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
                   },
@@ -366,7 +374,10 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
                   },
                   {
                     title: "Renovar",
-                    value: expiringMembers.length + expiredMembers.length,
+                    value:
+                      paymentDueMembers.length +
+                      expiringMembers.length +
+                      expiredMembers.length,
                     helper: `${dueIn7Days} vencen en 7 días`,
                     icon: CalendarClock,
                     tone: "bg-amber-50 text-amber-700 border-amber-200/70",
@@ -434,7 +445,7 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
               <div className="rounded-2xl border border-border bg-muted/20 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <Wallet className="h-4 w-4 shrink-0 text-primary" />
-                  Cuota en riesgo (vencidos / por vencer)
+                  Cuota en riesgo (vencidos / por vencer / pago hoy)
                 </div>
                 <p className="mt-2 text-lg font-semibold tabular-nums text-foreground">
                   {formatCurrency(atRiskRevenue.USD, "USD")}
@@ -452,7 +463,9 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
                 <p className="mt-2 text-lg font-semibold tabular-nums text-foreground">
                   {formatTenure(Math.round(avgTenureDays || 0))}
                 </p>
-                <p className="text-xs text-muted-foreground">Activos + por vencer.</p>
+                <p className="text-xs text-muted-foreground">
+                  Activos + por vencer + dia de pago.
+                </p>
               </div>
             </div>
           </CardContent>
@@ -464,7 +477,7 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Ingresos recurrentes</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Suma de cuotas mensuales de socios activos y por vencer. El anual es cuota
+                Suma de cuotas mensuales de socios activos, por vencer y con pago hoy. El anual es cuota
               mensual × 12 (proyección simple). Las ventas del mostrador van aparte.
             </p>
           </CardHeader>
@@ -630,7 +643,7 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Prioridad</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {expiringMembers.length + expiredMembers.length} socios necesitan renovación
+                    {paymentDueMembers.length + expiringMembers.length + expiredMembers.length} socios necesitan renovación
                     ({dueIn7Days} con fin de membresía en los próximos 7 días).
                   </p>
                 </div>
@@ -737,7 +750,7 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Lista de renovación</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Hasta 7 socios: por vencer o vencidos, los más urgentes primero.
+              Hasta 7 socios: con pago hoy, por vencer o vencidos, los más urgentes primero.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -762,12 +775,16 @@ export function AnalyticsDetails({ members, checkIns }: AnalyticsDetailsProps) {
                       className={`w-fit shrink-0 ${
                         member.days_remaining < 0
                           ? "border-rose-200 bg-rose-50 text-rose-700"
-                          : "border-amber-200 bg-amber-50 text-amber-700"
+                          : member.status === "payment-due"
+                            ? "border-orange-200 bg-orange-50 text-orange-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
                       }`}
                     >
                       {member.days_remaining < 0
                         ? `${Math.abs(member.days_remaining)} d retraso`
-                        : `${member.days_remaining} d restantes`}
+                        : member.status === "payment-due"
+                          ? "Paga hoy"
+                          : `${member.days_remaining} d restantes`}
                     </Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
