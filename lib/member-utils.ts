@@ -1,6 +1,36 @@
 import { MemberRow, MemberWithStatus, MemberStatus, Currency } from "./types";
+import { COSTA_RICA_TIME_ZONE } from "./checkins";
 
 export const EXPIRING_THRESHOLD_DAYS = 4;
+
+const costaRicaDatePartsFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: COSTA_RICA_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function getDatePart(parts: Intl.DateTimeFormatPart[], type: "year" | "month" | "day"): string {
+  return parts.find((part) => part.type === type)?.value ?? "";
+}
+
+function getDateKeyInCostaRica(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = costaRicaDatePartsFormatter.formatToParts(date);
+  const year = getDatePart(parts, "year");
+  const month = getDatePart(parts, "month");
+  const day = getDatePart(parts, "day");
+  return `${year}-${month}-${day}`;
+}
+
+function getStableDateForDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+}
+
+function getTodayDateKeyInCostaRica(): string {
+  return getDateKeyInCostaRica(new Date());
+}
 
 export function formatPersonName(value: string): string {
   return value
@@ -43,19 +73,19 @@ export function formatDateInputValue(value: Date): string {
 }
 
 export function calculateDaysRemaining(endDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const expDate = parseDateValue(endDate);
-  expDate.setHours(0, 0, 0, 0);
+  const today = getStableDateForDateKey(getTodayDateKeyInCostaRica());
+  const expDate = /^(\d{4})-(\d{2})-(\d{2})$/.test(endDate)
+    ? getStableDateForDateKey(endDate)
+    : getStableDateForDateKey(getDateKeyInCostaRica(endDate));
   const diffTime = expDate.getTime() - today.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 export function calculateTenureDays(startDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = parseDateValue(startDate);
-  start.setHours(0, 0, 0, 0);
+  const today = getStableDateForDateKey(getTodayDateKeyInCostaRica());
+  const start = /^(\d{4})-(\d{2})-(\d{2})$/.test(startDate)
+    ? getStableDateForDateKey(startDate)
+    : getStableDateForDateKey(getDateKeyInCostaRica(startDate));
   const diffTime = today.getTime() - start.getTime();
   return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 }
@@ -129,6 +159,7 @@ export function formatCurrency(
 
 export function formatDate(dateString: string): string {
   return parseDateValue(dateString).toLocaleDateString("en-US", {
+    timeZone: COSTA_RICA_TIME_ZONE,
     year: "numeric",
     month: "short",
     day: "numeric",

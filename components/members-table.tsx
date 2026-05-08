@@ -78,7 +78,7 @@ import {
   Clock3,
   OctagonAlert,
   Loader2,
-  Ellipsis,
+  Settings2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -185,17 +185,19 @@ function formatPaymentReminderDate(dateString: string) {
 
 function getWhatsAppReminderMessage(member: MemberWithStatus) {
   const paymentDateLabel = formatPaymentReminderDate(member.end_date);
+  const automatedLine =
+    "Este mensaje fue enviado automáticamente por nuestro sistema de cobros 🤖";
   const motivationalLine = "¡A seguir entrenando con todo! 💪";
 
   if (member.status === "payment-due") {
-    return `Hola ${member.name}, le recordamos que hoy es su día de pago de la membresía. Muchas gracias.\n\n${motivationalLine}`;
+    return `Hola ${member.name}, le recordamos que hoy es su día de pago de la membresía. Muchas gracias.\n\n${automatedLine}\n\n${motivationalLine}`;
   }
 
   if (member.days_remaining < 0) {
-    return `Hola ${member.name}, le recordamos que su día de pago fue el ${paymentDateLabel}. Si desea renovar su membresía, con gusto le ayudamos. Muchas gracias.\n\n${motivationalLine}`;
+    return `Hola ${member.name}, le recordamos que su día de pago fue el ${paymentDateLabel}. Si desea renovar su membresía, con gusto le ayudamos. Muchas gracias.\n\n${automatedLine}\n\n${motivationalLine}`;
   }
 
-  return `Hola ${member.name}, le recordamos que el ${paymentDateLabel} es su día de pago de la membresía. Muchas gracias.\n\n${motivationalLine}`;
+  return `Hola ${member.name}, le recordamos que el ${paymentDateLabel} es su día de pago de la membresía. Muchas gracias.\n\n${automatedLine}\n\n${motivationalLine}`;
 }
 
 type MemberTableRowProps = {
@@ -354,21 +356,6 @@ const MemberTableRow = memo(function MemberTableRow({
           "\u2014"
         )}
       </TableCell>
-      <TableCell className="hidden 2xl:table-cell">
-        {member.description?.trim() ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2"
-            onClick={handleNoteClick}
-          >
-            Ver nota
-          </Button>
-        ) : (
-          "\u2014"
-        )}
-      </TableCell>
       <TableCell>
         <div className="flex items-center justify-end gap-1 lg:gap-2">
           {(isRenewalStatus(member.status) ||
@@ -412,15 +399,29 @@ const MemberTableRow = memo(function MemberTableRow({
                   className="transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:size-9"
                   title="More actions"
                 >
-                  <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+                  <Settings2 className="h-4 w-4 lg:h-5 lg:w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={handleEditClick}>
+                {member.description?.trim() ? (
+                  <DropdownMenuItem
+                    onClick={handleNoteClick}
+                    className="mb-1 justify-center rounded-md border border-border bg-muted/70 font-medium"
+                  >
+                    Ver nota
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  onClick={handleEditClick}
+                  className="mb-1 justify-center rounded-md border border-border bg-muted/70 font-medium"
+                >
                   <Pencil className="h-4 w-4" />
                   Edit member
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleManageStatusClick}>
+                <DropdownMenuItem
+                  onClick={handleManageStatusClick}
+                  className="justify-center rounded-md border border-border bg-muted/70 font-medium"
+                >
                   <Trash2 className="h-4 w-4 text-destructive" />
                   Manage status
                 </DropdownMenuItem>
@@ -434,7 +435,7 @@ const MemberTableRow = memo(function MemberTableRow({
               title="More actions"
               disabled
             >
-              <Ellipsis className="h-4 w-4 lg:h-5 lg:w-5" />
+              <Settings2 className="h-4 w-4 lg:h-5 lg:w-5" />
             </Button>
           )}
         </div>
@@ -1016,7 +1017,6 @@ export function MembersTable({ members }: MembersTableProps) {
                 <TableHead>Days Left</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden xl:table-cell">Phone</TableHead>
-                <TableHead className="hidden 2xl:table-cell">Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1024,7 +1024,7 @@ export function MembersTable({ members }: MembersTableProps) {
               {filteredMembers.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={9}
+                    colSpan={8}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No members found
