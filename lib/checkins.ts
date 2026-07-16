@@ -142,6 +142,54 @@ export function formatLocalDateKey(value: string | Date): string {
   return `${year}-${month}-${day}`;
 }
 
+export function getMonthKeyFromDateKey(dateKey: string): string {
+  return dateKey.slice(0, 7);
+}
+
+export function getCurrentMonthKey(referenceDate = new Date()): string {
+  return getMonthKeyFromDateKey(formatLocalDateKey(referenceDate));
+}
+
+/** Keep prior-month check-ins until this calendar day (Costa Rica), then purge. */
+export const CHECK_INS_PURGE_START_DAY = 5;
+
+export function getDayOfMonthInCostaRica(referenceDate = new Date()): number {
+  const parts = costaRicaDatePartsFormatter.formatToParts(referenceDate);
+  return Number(getDatePart(parts, "day"));
+}
+
+export function shouldPurgePreviousMonthCheckIns(
+  referenceDate = new Date()
+): boolean {
+  return getDayOfMonthInCostaRica(referenceDate) >= CHECK_INS_PURGE_START_DAY;
+}
+
+export function getPreviousMonthKey(monthKey: string): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 2, 1, 12, 0, 0, 0);
+  const parts = costaRicaDatePartsFormatter.formatToParts(date);
+  const previousYear = getDatePart(parts, "year");
+  const previousMonth = getDatePart(parts, "month");
+  return `${previousYear}-${previousMonth}`;
+}
+
+export function getMonthBoundsFromMonthKey(monthKey: string): {
+  start: Date;
+  end: Date;
+} {
+  const [year, month] = monthKey.split("-").map(Number);
+  const paddedMonth = String(month).padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate();
+  const paddedLastDay = String(lastDay).padStart(2, "0");
+
+  return {
+    start: new Date(`${monthKey}-01T00:00:00${COSTA_RICA_UTC_OFFSET}`),
+    end: new Date(
+      `${year}-${paddedMonth}-${paddedLastDay}T23:59:59.999${COSTA_RICA_UTC_OFFSET}`
+    ),
+  };
+}
+
 export function formatTimeHHMMInCostaRica(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return costaRicaTimeFormatter.format(date);

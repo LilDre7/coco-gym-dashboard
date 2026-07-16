@@ -10,24 +10,28 @@ import {
   useState,
 } from "react";
 import { getCheckIns } from "@/lib/actions";
-import { formatLocalDateKey, type CheckIn } from "@/lib/checkins";
+import {
+  getCurrentMonthKey,
+  getMonthKeyFromDateKey,
+  type CheckIn,
+} from "@/lib/checkins";
 
 const CHECK_INS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type DashboardCheckInsCacheState = {
   checkIns: CheckIn[];
-  dateKey: string | null;
+  monthKey: string | null;
   fetchedAt: number | null;
   isLoading: boolean;
 };
 
 type DashboardCheckInsCacheContextValue = DashboardCheckInsCacheState & {
   ensureCheckIns: (
-    dateKey: string,
+    monthKey: string,
     options?: { force?: boolean }
   ) => Promise<CheckIn[]>;
   setCachedCheckIns: (
-    dateKey: string,
+    monthKey: string,
     value: React.SetStateAction<CheckIn[]>
   ) => void;
 };
@@ -37,10 +41,10 @@ const DashboardCheckInsCacheContext =
 
 function hasFreshCheckInsCache(
   state: DashboardCheckInsCacheState,
-  dateKey: string
+  monthKey: string
 ) {
   if (state.fetchedAt === null) return false;
-  if (state.dateKey !== dateKey) return false;
+  if (state.monthKey !== monthKey) return false;
 
   return Date.now() - state.fetchedAt < CHECK_INS_CACHE_TTL_MS;
 }
@@ -52,7 +56,7 @@ export function DashboardCheckInsCacheProvider({
 }) {
   const [state, setState] = useState<DashboardCheckInsCacheState>({
     checkIns: [],
-    dateKey: null,
+    monthKey: null,
     fetchedAt: null,
     isLoading: false,
   });
@@ -61,7 +65,7 @@ export function DashboardCheckInsCacheProvider({
 
   stateRef.current = state;
 
-  const fetchAndStoreCheckIns = useCallback((dateKey: string) => {
+  const fetchAndStoreCheckIns = useCallback((monthKey: string) => {
     if (inFlightRef.current) {
       return inFlightRef.current;
     }
@@ -71,11 +75,11 @@ export function DashboardCheckInsCacheProvider({
       isLoading: true,
     }));
 
-    const request = getCheckIns()
+    const request = getCheckIns(monthKey)
       .then((checkIns) => {
         setState({
           checkIns,
-          dateKey,
+          monthKey,
           fetchedAt: Date.now(),
           isLoading: false,
         });
@@ -97,17 +101,17 @@ export function DashboardCheckInsCacheProvider({
   }, []);
 
   const ensureCheckIns = useCallback(
-    async (dateKey: string, options?: { force?: boolean }) => {
+    async (monthKey: string, options?: { force?: boolean }) => {
       const force = options?.force ?? false;
       const current = stateRef.current;
 
-      if (!force && hasFreshCheckInsCache(current, dateKey)) {
+      if (!force && hasFreshCheckInsCache(current, monthKey)) {
         return current.checkIns;
       }
 
-      if (!force && current.checkIns.length > 0) {
+      if (!force && current.checkIns.length > 0 && current.monthKey === monthKey) {
         if (!inFlightRef.current) {
-          void fetchAndStoreCheckIns(dateKey).catch((error) => {
+          void fetchAndStoreCheckIns(monthKey).catch((error) => {
             console.error("Failed to refresh dashboard check-ins cache:", error);
           });
         }
@@ -115,19 +119,19 @@ export function DashboardCheckInsCacheProvider({
         return current.checkIns;
       }
 
-      return fetchAndStoreCheckIns(dateKey);
+      return fetchAndStoreCheckIns(monthKey);
     },
     [fetchAndStoreCheckIns]
   );
 
   const setCachedCheckIns = useCallback(
-    (dateKey: string, value: React.SetStateAction<CheckIn[]>) => {
+    (monthKey: string, value: React.SetStateAction<CheckIn[]>) => {
       setState((current) => ({
         checkIns:
           typeof value === "function"
             ? value(current.checkIns)
             : value,
-        dateKey,
+        monthKey,
         fetchedAt: Date.now(),
         isLoading: false,
       }));
@@ -136,9 +140,7 @@ export function DashboardCheckInsCacheProvider({
   );
 
   useEffect(() => {
-    const todayDateKey = formatLocalDateKey(new Date());
-
-    void ensureCheckIns(todayDateKey).catch((error) => {
+    void ensureCheckIns(getCurrentMonthKey()).catch((error) => {
       console.error("Failed to prime dashboard check-ins cache:", error);
     });
   }, [ensureCheckIns]);

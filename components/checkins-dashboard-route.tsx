@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { CheckInsDashboard } from "@/components/checkins-dashboard";
 import { useDashboardCheckInsCache } from "@/components/dashboard-checkins-cache-provider";
-import { type CheckIn } from "@/lib/checkins";
+import { getMonthKeyFromDateKey } from "@/lib/checkins";
 import { type MemberWithStatus, type StoreProductRow } from "@/lib/types";
 
 interface CheckInsDashboardRouteProps {
@@ -23,22 +23,17 @@ export function CheckInsDashboardRoute({
     useDashboardCheckInsCache();
 
   useEffect(() => {
-    void ensureCheckIns(initialDateKey).catch((error) => {
+    const monthKey = getMonthKeyFromDateKey(initialDateKey);
+    void ensureCheckIns(monthKey).catch((error) => {
       console.error("Failed to load dashboard check-ins:", error);
     });
   }, [ensureCheckIns, initialDateKey]);
 
-  const handleSetCheckIns = useCallback(
-    (value: React.SetStateAction<CheckIn[]>) => {
-      setCachedCheckIns(initialDateKey, value);
-    },
-    [initialDateKey, setCachedCheckIns]
-  );
-
   return (
     <CheckInsDashboard
       checkIns={checkIns}
-      setCheckIns={handleSetCheckIns}
+      setCachedCheckIns={setCachedCheckIns}
+      ensureCheckIns={ensureCheckIns}
       initialProducts={initialProducts}
       initialMembers={initialMembers}
       initialDateKey={initialDateKey}

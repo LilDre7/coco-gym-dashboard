@@ -23,6 +23,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   KeyRound,
+  NotebookPen,
   UserRoundSearchIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ import { toast } from "sonner";
 
 const navItems = [
   { href: "/dashboard", label: "Check-ins", icon: UserRoundSearchIcon },
+  { href: "/dashboard/notes", label: "Notas", icon: NotebookPen },
   { href: "/dashboard/store", label: "Tienda", icon: ShoppingBag },
   { href: "/dashboard/members", label: "Members", icon: Users },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },

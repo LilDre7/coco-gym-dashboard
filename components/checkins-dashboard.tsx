@@ -76,6 +76,7 @@
     formatMonthLabel,
     formatSelectedDate,
     getMonthlyAttendanceFullRanking,
+    getMonthKeyFromDateKey,
   } from "@/lib/checkins";
   import { addCheckIn, deleteCheckIn, updateCheckIn } from "@/lib/actions";
   import {
@@ -101,7 +102,14 @@
     initialDateKey: string;
     initialTime: string;
     checkIns?: CheckIn[];
-    setCheckIns?: React.Dispatch<React.SetStateAction<CheckIn[]>>;
+    setCachedCheckIns?: (
+      monthKey: string,
+      value: React.SetStateAction<CheckIn[]>
+    ) => void;
+    ensureCheckIns?: (
+      monthKey: string,
+      options?: { force?: boolean }
+    ) => Promise<CheckIn[]>;
   }
 
   type PaymentMethodValue = "TARJETA" | "EFECTIVO" | "SINPE" | "NONE";
@@ -314,16 +322,25 @@
     initialDateKey,
     initialTime,
     checkIns: controlledCheckIns,
-    setCheckIns: controlledSetCheckIns,
+    setCachedCheckIns: controlledSetCachedCheckIns,
+    ensureCheckIns,
   }: CheckInsDashboardProps) {
     const router = useRouter();
     const supabase = useMemo(() => createClient(), []);
     const [localCheckIns, setLocalCheckIns] = useState(initialCheckIns);
     const checkIns = controlledCheckIns ?? localCheckIns;
-    const setCheckIns = controlledSetCheckIns ?? setLocalCheckIns;
     const [products, setProducts] = useState(initialProducts);
     const [isPending, startTransition] = useTransition();
     const [selectedDate, setSelectedDate] = useState(initialDateKey);
+
+    function updateCheckIns(value: React.SetStateAction<CheckIn[]>) {
+      if (controlledSetCachedCheckIns) {
+        controlledSetCachedCheckIns(getMonthKeyFromDateKey(selectedDate), value);
+        return;
+      }
+
+      setLocalCheckIns(value);
+    }
     const [searchTerm, setSearchTerm] = useState("");
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [formState, setFormState] = useState<CheckInFormState>(
@@ -380,6 +397,15 @@
     useEffect(() => {
       setIsMounted(true);
     }, []);
+
+    useEffect(() => {
+      if (!ensureCheckIns) return;
+
+      const monthKey = getMonthKeyFromDateKey(selectedDate);
+      void ensureCheckIns(monthKey).catch((error) => {
+        console.error("Failed to load check-ins for month:", error);
+      });
+    }, [ensureCheckIns, selectedDate]);
 
     const matchedMember = useMemo(() => {
       const normalizedName = formatPersonName(formState.name);
@@ -965,7 +991,7 @@
             selected_date: formatLocalDateKey(original.datetime),
           });
 
-          setCheckIns((current) =>
+          updateCheckIns((current) =>
             current.map((checkIn) => {
               if (checkIn.id !== editingId) return checkIn;
               const datetime = buildCheckInDateTime(
@@ -1013,7 +1039,7 @@
           trackEvent("checkin_deleted", {
             selected_date: selectedDate,
           });
-          setCheckIns((current) => current.filter((checkIn) => checkIn.id !== id));
+          updateCheckIns((current) => current.filter((checkIn) => checkIn.id !== id));
           if (editingId === id) {
             cancelEditing();
           }
@@ -1060,7 +1086,7 @@
             selected_date: selectedDate,
             matched_member: Boolean(matchedMember),
           });
-          setCheckIns((current) => [...current, createdCheckIn]);
+          updateCheckIns((current) => [...current, createdCheckIn]);
           setIsAddOpen(false);
           resetForm();
           fireSuccessConfetti();
