@@ -11,7 +11,6 @@ import {
   getCurrentMonthKey,
   getMonthBoundsFromMonthKey,
   mapCheckInRow,
-  shouldPurgePreviousMonthCheckIns,
 } from "./checkins";
 import { formatPersonName } from "./member-utils";
 
@@ -385,24 +384,6 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
-async function purgeCheckInsBeforeMonth(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  monthKey: string
-) {
-  const { start } = getMonthBoundsFromMonthKey(monthKey);
-
-  const { error } = await supabase
-    .from("check_ins")
-    .delete()
-    .eq("user_id", userId)
-    .lt("occurred_at", start.toISOString());
-
-  if (error && !isMissingCheckInsTableError(error.message)) {
-    console.warn("Failed to purge old check-ins:", error.message);
-  }
-}
-
 export async function getCheckIns(monthKey?: string) {
   const supabase = await createClient();
   const {
@@ -411,15 +392,6 @@ export async function getCheckIns(monthKey?: string) {
   if (!user) throw new Error("Not authenticated");
 
   const effectiveMonthKey = monthKey ?? getCurrentMonthKey();
-  const now = new Date();
-
-  if (
-    effectiveMonthKey === getCurrentMonthKey(now) &&
-    shouldPurgePreviousMonthCheckIns(now)
-  ) {
-    await purgeCheckInsBeforeMonth(supabase, user.id, effectiveMonthKey);
-  }
-
   const { start, end } = getMonthBoundsFromMonthKey(effectiveMonthKey);
 
   const { data, error } = await supabase

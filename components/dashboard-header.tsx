@@ -24,7 +24,8 @@ import {
   ChevronsRight,
   KeyRound,
   NotebookPen,
-  UserRoundSearchIcon
+  UserRoundSearchIcon,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -33,9 +34,19 @@ const navItems = [
   { href: "/dashboard", label: "Check-ins", icon: UserRoundSearchIcon },
   { href: "/dashboard/notes", label: "Notas", icon: NotebookPen },
   { href: "/dashboard/store", label: "Tienda", icon: ShoppingBag },
-  { href: "/dashboard/members", label: "Members", icon: Users },
+  { href: "/dashboard/members", label: "Miembros", icon: Users },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/reports", label: "Cierres", icon: FileText },
 ];
+
+const mobileNavItems = [
+  "/dashboard",
+  "/dashboard/members",
+  "/dashboard/store",
+  "/dashboard/notes",
+  "/dashboard/analytics",
+  "/dashboard/reports",
+].map((href) => navItems.find((item) => item.href === href)!);
 
 interface DashboardHeaderProps {
   sidebarOpen: boolean;
@@ -292,7 +303,7 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar }: DashboardHeade
           <ThemeToggle />
         </div>
         <nav className="flex items-center gap-1 overflow-x-auto px-3 py-2" aria-label="Mobile navigation">
-          {navItems.map((item) => {
+          {mobileNavItems.map((item) => {
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"

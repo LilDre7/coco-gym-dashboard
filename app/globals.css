@@ -233,3 +233,13 @@
     color-scheme: dark;
   }
 }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: white !important; color: black !important; }
+  aside, header, .report-controls { display: none !important; }
+  .monthly-report { padding: 0 !important; }
+  .report-document { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+  .report-document * { color: #111 !important; }
+  .report-document .bg-muted\/20, .report-document .bg-muted\/50 { background: #f5f5f5 !important; }
+}
