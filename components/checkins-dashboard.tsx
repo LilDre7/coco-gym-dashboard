@@ -1,5 +1,6 @@
   "use client";
 
+  import dynamic from "next/dynamic";
   import { useEffect, useMemo, useRef, useState, useTransition } from "react";
   import {
     CalendarDays,
@@ -35,7 +36,6 @@
   import { Label } from "@/components/ui/label";
   import { Badge } from "@/components/ui/badge";
   import { Textarea } from "@/components/ui/textarea";
-  import { Calendar } from "@/components/ui/calendar";
   import {
     Popover,
     PopoverContent,
@@ -94,6 +94,16 @@
   import { toast } from "sonner";
   import { fireSuccessConfetti } from "@/lib/confetti";
   import { trackEvent } from "@/lib/analytics";
+
+  // react-day-picker is only needed after opening the date selector. Keeping it
+  // out of the initial dashboard bundle removes unused JavaScript on first load.
+  const Calendar = dynamic(
+    () => import("@/components/ui/calendar").then((module) => module.Calendar),
+    {
+      ssr: false,
+      loading: () => <div className="h-[320px] w-[300px] animate-pulse rounded-xl bg-muted" />,
+    }
+  );
 
   interface CheckInsDashboardProps {
     initialCheckIns?: CheckIn[];
@@ -2425,5 +2435,4 @@
       </main>
     );
   }
-
 

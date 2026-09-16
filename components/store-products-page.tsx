@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -43,6 +43,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -118,6 +119,7 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<StoreProductRow | null>(null);
@@ -128,12 +130,26 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
     const normalized = search.trim().toLowerCase();
     if (!normalized) return products;
 
-    return products.filter((product) =>
-      [product.name, product.category].some((value) =>
-        value.toLowerCase().includes(normalized)
-      )
-    );
-  }, [products, search]);
+    return products.filter((product) => {
+      const matchesSearch =
+        !normalized ||
+        [product.name, product.category].some((value) =>
+          value.toLowerCase().includes(normalized)
+        );
+      const matchesCategory =
+        selectedCategory === "Todas" || product.category === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, search, selectedCategory]);
+
+  const categories = useMemo(
+    () =>
+      Array.from(new Set(products.map((product) => product.category.trim() || "Otros"))).sort(
+        (left, right) => left.localeCompare(right, "es")
+      ),
+    [products]
+  );
 
   const groupedProducts = useMemo(() => {
     const groups = filteredProducts.reduce<Record<string, StoreProductRow[]>>(
@@ -158,7 +174,6 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
   }, [filteredProducts]);
 
   const activeCount = products.filter((product) => product.is_active).length;
-  const activeFilteredCount = filteredProducts.filter((product) => product.is_active).length;
   const categoryCount = groupedProducts.length;
 
   function resetForm() {
@@ -294,64 +309,82 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
 
   return (
     <>
-      <main className="mx-auto w-full max-w-7xl space-y-4 px-4 py-6 sm:px-6">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tienda</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Catalogo global de productos y precios para usar en las compras del dashboard
-            </p>
+      <main className="mx-auto w-full max-w-6xl space-y-8 px-5 py-8 sm:px-8 sm:py-10">
+        <section className="relative overflow-hidden rounded-3xl border border-primary/15 bg-linear-to-br from-primary/10 via-transparent to-transparent px-5 py-7 sm:px-7 sm:py-8">
+          <div className="pointer-events-none absolute -right-14 -top-20 h-52 w-52 rounded-full bg-primary/15 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 left-[12%] h-px w-2/3 bg-linear-to-r from-transparent via-primary/45 to-transparent" />
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_12px_var(--primary)]" />
+                Catálogo
+              </div>
+              <h1 className="text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">Tienda</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                Productos y precios disponibles para registrar ventas.
+              </p>
+            </div>
+            <Button
+              onClick={openCreateDialog}
+              className="h-10 rounded-full bg-primary px-5 text-primary-foreground shadow-sm hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo producto
+            </Button>
           </div>
-          <Button
-            onClick={openCreateDialog}
-            className="h-9 rounded-xl bg-primary px-3 text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            Agregar producto
-          </Button>
-        </div>
+        </section>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Card className="border-primary/12 bg-linear-to-br from-primary/4 via-card to-card shadow-none dark:from-primary/5 dark:via-card dark:to-card">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs text-muted-foreground">Total productos</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 text-2xl font-semibold text-foreground">{products.length}</CardContent>
-          </Card>
-          <Card className="border-emerald-200/70 bg-linear-to-br from-emerald-50/70 via-card to-card shadow-none dark:border-emerald-500/12 dark:from-emerald-500/6 dark:via-card dark:to-card">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs text-muted-foreground">Activos visibles</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 text-2xl font-semibold text-emerald-700 dark:text-emerald-200">{activeFilteredCount}</CardContent>
-          </Card>
-          <Card className="border-amber-200/70 bg-linear-to-br from-amber-50/70 via-card to-card shadow-none dark:border-amber-500/12 dark:from-amber-500/6 dark:via-card dark:to-card">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs text-muted-foreground">Categorias visibles</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 text-2xl font-semibold text-amber-700 dark:text-amber-200">{categoryCount}</CardContent>
-          </Card>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-none">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar por nombre o categoria..."
-                className="h-9 rounded-xl border-border bg-background pl-9 text-sm shadow-none"
+                className="h-11 rounded-full border-border bg-muted/35 pl-10 pr-9 text-sm shadow-none focus-visible:bg-background"
               />
+              {search && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSearch("")}
+                  className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-lg"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-primary/15 bg-primary/6 px-2.5 py-0.5 text-xs text-primary dark:border-primary/15 dark:bg-primary/8 dark:text-primary">
-                {filteredProducts.length} productos
-              </Badge>
-              <Badge variant="outline" className="border-border bg-background px-2.5 py-0.5 text-xs text-foreground">
-                {activeCount} activos totales
-              </Badge>
+            <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+              <span><strong className="font-semibold text-foreground">{products.length}</strong> productos</span>
+              <span className="h-3 w-px bg-border" />
+              <span><strong className="font-semibold text-foreground">{activeCount}</strong> activos</span>
+              <span className="h-3 w-px bg-border" />
+              <span><strong className="font-semibold text-foreground">{categoryCount}</strong> categorías</span>
             </div>
           </div>
+          {categories.length > 1 && (
+            <div className="flex gap-1 overflow-x-auto border-b border-border pb-3">
+              {["Todas", ...categories].map((category) => (
+                <Button
+                  key={category}
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSelectedCategory(category)}
+                  className={cn(
+                    "h-8 shrink-0 rounded-full px-3 text-xs",
+                    selectedCategory === category
+                      ? "bg-foreground text-background hover:bg-foreground/90 hover:text-background"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  {category}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
 
         {filteredProducts.length === 0 ? (
@@ -374,14 +407,8 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
               const categoryActiveCount = categoryProducts.filter((product) => product.is_active).length;
 
               return (
-                <section
-                  key={category}
-                  className={cn(
-                    "overflow-hidden rounded-2xl border border-border bg-linear-to-br p-3 shadow-none sm:p-4",
-                    appearance.accentClassName
-                  )}
-                >
-                  <div className="mb-3 flex flex-col gap-2 border-b border-border/60 pb-3 lg:flex-row lg:items-center lg:justify-between">
+                <section key={category}>
+                  <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <div
                         className={cn(
@@ -392,47 +419,42 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
                         <Icon className="h-4 w-4" />
                       </div>
                       <div>
-                        <h2 className="text-base font-semibold text-foreground">{category}</h2>
-                        <p className="text-xs text-muted-foreground">
-                          {categoryProducts.length} productos en esta categoria
-                        </p>
+                        <h2 className="text-base font-semibold tracking-tight text-foreground">{category}</h2>
+                        <p className="text-xs text-muted-foreground">{categoryProducts.length} productos</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className={cn("px-2.5 py-0.5 text-xs", appearance.badgeClassName)}>
-                        {categoryActiveCount} activos
-                      </Badge>
-                      <Badge variant="outline" className="border-border bg-background/80 px-2.5 py-0.5 text-xs text-foreground">
-                        {categoryProducts.length - categoryActiveCount} inactivos
-                      </Badge>
-                    </div>
+                    <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">{categoryActiveCount}</span> disponibles</p>
                   </div>
 
-                  <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {categoryProducts.map((product) => (
-                      <Card
-                        key={product.id}
-                        className={cn(
-                          "rounded-xl border-border bg-card/90 shadow-none transition-colors",
-                          !product.is_active && "bg-muted/30"
+                        <Card
+                          key={product.id}
+                          className={cn(
+                          "group relative overflow-hidden rounded-2xl border-border bg-card shadow-none transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/10",
+                          !product.is_active && "opacity-65"
                         )}
                       >
-                        <CardContent className="space-y-3 p-3">
+                        <div className={cn("absolute inset-x-0 top-0 h-1 origin-left scale-x-0 transition-transform duration-300 group-hover:scale-x-100", appearance.shellClassName)} />
+                        <CardContent className="space-y-4 p-4">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-foreground">
-                                {normalizeProductName(product.name)}
-                              </p>
-                              <p className="mt-0.5 text-sm text-muted-foreground">
-                                {formatAmountCRC(product.price)}
-                              </p>
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3", appearance.shellClassName)}>
+                                <Icon className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-foreground">
+                                  {normalizeProductName(product.name)}
+                                </p>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{category}</p>
+                              </div>
                             </div>
                             <Badge
                               variant="outline"
                               className={cn(
                                 "shrink-0 px-2 py-0 text-[11px]",
                                 product.is_active
-                                  ? "border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-500/15 dark:bg-emerald-500/8 dark:text-emerald-200"
+                                  ? "border-emerald-200/70 bg-emerald-50 text-emerald-700 shadow-[0_0_0_3px_rgb(34_197_94_/_0.08)] dark:border-emerald-500/15 dark:bg-emerald-500/8 dark:text-emerald-200"
                                   : "border-border bg-muted text-muted-foreground"
                               )}
                             >
@@ -440,18 +462,19 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
                             </Badge>
                           </div>
 
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline" className={cn("px-2 py-0 text-[11px]", appearance.badgeClassName)}>
-                              {category}
-                            </Badge>
+                          <div className="flex items-end justify-between border-t border-border/70 pt-3">
+                            <p className="text-xl font-semibold tracking-tight text-foreground">
+                              {formatAmountCRC(product.price)}
+                            </p>
+                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">CRC</p>
                           </div>
 
-                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          <div className="flex items-center gap-1 border-t border-border/70 pt-3">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => openEditDialog(product)}
-                              className="h-8 rounded-lg border-border bg-background px-2.5 text-xs"
+                              className="h-8 flex-1 rounded-lg border-border bg-background px-2.5 text-xs"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                               Editar
@@ -471,10 +494,10 @@ export function StoreProductsPage({ initialProducts }: { initialProducts: StoreP
                               size="sm"
                               onClick={() => setProductToDelete(product)}
                               disabled={isPending}
-                              className="h-8 rounded-lg border-red-200/70 bg-red-50/80 px-2.5 text-xs text-red-700 hover:bg-red-100/80 hover:text-red-800 dark:border-red-500/12 dark:bg-red-500/8 dark:text-red-500 dark:hover:bg-red-500/12"
+                              className="h-8 w-8 rounded-lg border-0 bg-transparent p-0 text-muted-foreground hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                              aria-label={`Eliminar ${product.name}`}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                              Eliminar
                             </Button>
                           </div>
                         </CardContent>

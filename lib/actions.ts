@@ -218,7 +218,9 @@ export async function getMembers(): Promise<MemberRow[]> {
 
   const { data, error } = await supabase
     .from("members")
-    .select("*")
+    .select(
+      "id, user_id, name, photo_url, discipline, monthly_fee, currency, start_date, end_date, phone, description, is_active, created_at"
+    )
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -396,7 +398,9 @@ export async function getCheckIns(monthKey?: string) {
 
   const { data, error } = await supabase
     .from("check_ins")
-    .select("*")
+    .select(
+      "id, user_id, name, occurred_at, has_purchase, product, payment_method, amount, notes, created_at"
+    )
     .eq("user_id", user.id)
     .gte("occurred_at", start.toISOString())
     .lte("occurred_at", end.toISOString())
@@ -498,7 +502,7 @@ export async function getStoreProducts() {
 
   const { data, error } = await supabase
     .from("store_products")
-    .select("*")
+    .select("id, user_id, name, category, price, is_active, created_at")
     .order("is_active", { ascending: false })
     .order("category", { ascending: true })
     .order("name", { ascending: true });

@@ -22,7 +22,9 @@ type ProviderPayload = {
 async function fetchUsdToCrcRate() {
   const response = await fetch(getProviderUrl(), {
     headers: { Accept: "application/json" },
-    cache: "no-store",
+    // This value changes slowly. Caching avoids making the dashboard wait on
+    // a third-party service for every visit while keeping it reasonably fresh.
+    next: { revalidate: 300 },
   });
   if (!response.ok) {
     throw new Error(`Provider request failed with ${response.status}`);

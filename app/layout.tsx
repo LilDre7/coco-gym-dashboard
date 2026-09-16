@@ -1,7 +1,7 @@
 import React from "react"
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+import { DeferredAnalytics } from '@/components/deferred-analytics'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
@@ -57,7 +57,7 @@ export default function RootLayout({
             }}
           />
         </ThemeProvider>
-        <Analytics />
+        <DeferredAnalytics />
       </body>
     </html>
   )

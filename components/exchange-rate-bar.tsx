@@ -35,7 +35,9 @@
 
       const loadRate = async () => {
         try {
-          const response = await fetch("/api/exchange-rate", { cache: "no-store" });
+          // The endpoint advertises a five-minute shared cache. Let the browser
+          // use it too, instead of making a network request on every navigation.
+          const response = await fetch("/api/exchange-rate");
           if (!response.ok) throw new Error("Failed to load exchange rate");
           const payload = (await response.json()) as ExchangeRateState;
           if (!isMounted) return;
